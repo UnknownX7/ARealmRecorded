@@ -2,7 +2,7 @@
   "Author": "UnknownX",
   "Name": "A Realm Recorded",
   "Punchline": "Allows you to use the duty recorder",
-  "Description": "Adds additional features to the duty recorder and automatically starts it in most instances. Please make sure the setting is actually enabled inside \"/record\".",
+  "Description": "Adds additional features to the duty recorder and automatically starts it in most instances. Please make sure the setting is enabled inside \"/record\".",
   "IconUrl": "",
   "ImageUrls": [
     ""
