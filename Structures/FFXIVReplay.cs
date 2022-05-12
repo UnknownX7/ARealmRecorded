@@ -4,7 +4,7 @@ using FFXIVClientStructs.FFXIV.Client.System.String;
 
 namespace ARealmRecorded.Structures;
 
-[StructLayout(LayoutKind.Explicit)]
+[StructLayout(LayoutKind.Explicit, Size = 0x718)]
 public unsafe struct FFXIVReplay
 {
     [StructLayout(LayoutKind.Explicit, Size = 0x60)]
@@ -31,8 +31,11 @@ public unsafe struct FFXIVReplay
         [FieldOffset(0x5C)] public int u0x5C; // Probably just padding
     }
 
+    [StructLayout(LayoutKind.Explicit)]
     public struct ChapterArray
     {
+        [FieldOffset(0x0)] public int length;
+
         [StructLayout(LayoutKind.Sequential)]
         public struct Chapter
         {
@@ -50,7 +53,7 @@ public unsafe struct FFXIVReplay
 
                 fixed (void* ptr = &this)
                 {
-                    return ((Chapter*)ptr + i);
+                    return ((Chapter*)((IntPtr)ptr + 4) + i);
                 }
             }
         }
@@ -65,8 +68,7 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x38)] public long overallDataOffset; // Overall (next?) offset of bytes to read
     [FieldOffset(0x40)] public long lastDataOffset; // Last? offset read
     [FieldOffset(0x48)] public ReplayHeader replayHeader;
-    [FieldOffset(0xA8)] public byte numChapters; // TODO is the ms of the first chapter used to determine the exact time?
-    [FieldOffset(0xAC)] public ChapterArray chapters;
+    [FieldOffset(0xA8)] public ChapterArray chapters; // ms of the first chapter determines the displayed time, but doesn't affect chapter times
     [FieldOffset(0x3B0)] public Utf8String contentTitle; // Current content name
     [FieldOffset(0x418)] public long nextDataSection; // 0x100000 if the lower half of the save/read area is next to be loaded into, 0x80000 if the upper half is
     [FieldOffset(0x420)] public long numberBytesRead; // How many bytes have been read from the file
@@ -81,22 +83,33 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x458)] public Utf8String characterRecordingName; // "<Character name> Duty Record #<Slot>" but only when recording, not when replaying
     [FieldOffset(0x4C0)] public Utf8String replayTitle; // contentTitle + the date and time, but only when recording, not when replaying
     [FieldOffset(0x528)] public Utf8String u0x528;
-    //[FieldOffset(0x590)] public int ???;
-
+    [FieldOffset(0x590)] public int u0x590;
+    [FieldOffset(0x598)] public long u0x598;
+    [FieldOffset(0x5A0)] public int u0x5A0;
     [FieldOffset(0x5A4)] public byte u0x5A4;
     [FieldOffset(0x5A5)] public byte nextReplaySaveSlot;
     [FieldOffset(0x5A8)] public ReplayHeader* savedReplayHeaders; // Pointer to the three saved replay headers
     [FieldOffset(0x5B0)] public IntPtr u0x5B0; // Pointer right after the file headers
     [FieldOffset(0x5B8)] public IntPtr u0x5B8; // Same as above?
-
-    [FieldOffset(0x5C8)] public ushort u0x5C8;
+    [FieldOffset(0x5C0)] public byte u0x5C0;
+    [FieldOffset(0x5C4)] public uint localPlayerObjectID;
+    [FieldOffset(0x5C8)] public ushort u0x5C8; // Seems to be the start of something copied from somewhere else, with a size of 0x60 (96)
     [FieldOffset(0x5CA)] public ushort currentTerritoryType; // TerritoryType of your actual ingame location, used to determine if you can play a recording (possibly as well as if it can be recorded?)
-
+    // 0x628, end of whatever this is
+    [FieldOffset(0x628)] public long u0x628;
+    [FieldOffset(0x630)] public long u0x630; // Seems to be the start of something copied from somewhere else, with a size of 0xC0 (192)
+    // 0x6F0, end of whatever this is
+    [FieldOffset(0x6F0)] public int u0x6F0;
     [FieldOffset(0x6F4)] public float seek; // Determines current time, but always seems to be slightly ahead
     [FieldOffset(0x6F8)] public float u0x6F8; // Seems to be 1 or 0, depending on if the recording is currently playing, jumps to high values while seeking a chapter
     [FieldOffset(0x6FC)] public float speed;
-    [FieldOffset(0x700)] public float u0x700; // Seems to be 1 or 0, depending on if the recording is not seeking a chapter
+    [FieldOffset(0x700)] public float u0x700; // Seems to be 1 or 0, depending on if the speed is greater than 1
     [FieldOffset(0x704)] public byte selectedChapter; // 64 when playing, otherwise determines the current chapter being seeked to
+    [FieldOffset(0x708)] public int startingMS; // the ms considered 00:00:00
+    [FieldOffset(0x70C)] public int u0x70C;
+    [FieldOffset(0x710)] public short u0x710;
     [FieldOffset(0x712)] public byte status; // Bitfield determining the current status of the system
     [FieldOffset(0x713)] public byte playbackControls; // Bitfield determining the current playback controls
+    [FieldOffset(0x714)] public byte u0x714;
+    // 0x715-0x718 is padding
 }
