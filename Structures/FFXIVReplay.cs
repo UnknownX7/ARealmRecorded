@@ -8,7 +8,7 @@ namespace ARealmRecorded.Structures;
 public unsafe struct FFXIVReplay
 {
     [StructLayout(LayoutKind.Explicit, Size = 0x60)]
-    public struct ReplayHeader
+    public struct Header
     {
         [FieldOffset(0x0)] public fixed byte FFXIVREPLAY[12]; // FFXIVREPLAY
         [FieldOffset(0xC)] public short u0xC; // Always 4? Possibly replay system version, wont play if not 4
@@ -31,17 +31,17 @@ public unsafe struct FFXIVReplay
         [FieldOffset(0x5C)] public int u0x5C; // Probably just padding
     }
 
-    [StructLayout(LayoutKind.Explicit)]
+    [StructLayout(LayoutKind.Explicit, Size = 0xC * 64)]
     public struct ChapterArray
     {
         [FieldOffset(0x0)] public int length;
 
-        [StructLayout(LayoutKind.Sequential)]
+        [StructLayout(LayoutKind.Sequential, Size = 0xC)]
         public struct Chapter
         {
             public int type; // 1 = start/restart, 2 = checkpoint, 3 = ???, 4 = event cutscene, 5 = barrier down? displayed as start/restart
-            public int offset; // byte offset?
-            public int ms; // ms from the start of the instance
+            public uint offset; // byte offset?
+            public uint ms; // ms from the start of the instance
         }
 
         public Chapter* this[int i]
@@ -53,7 +53,29 @@ public unsafe struct FFXIVReplay
 
                 fixed (void* ptr = &this)
                 {
-                    return ((Chapter*)((IntPtr)ptr + 4) + i);
+                    return (Chapter*)((IntPtr)ptr + 4) + i;
+                }
+            }
+        }
+    }
+
+    // .dat Info
+    // 0x364 is the start of the replay data, everything before this is the Header + ChapterArray
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ReplayDataSegment
+    {
+        public ushort opcode;
+        public ushort dataLength;
+        public uint ms;
+        public uint objectID;
+
+        public byte* Data
+        {
+            get
+            {
+                fixed (void* ptr = &this)
+                {
+                    return (byte*)ptr + 0xC;
                 }
             }
         }
@@ -67,7 +89,7 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x30)] public long dataOffset; // Next? offset of bytes to read from the save/read area (up to 1MB)
     [FieldOffset(0x38)] public long overallDataOffset; // Overall (next?) offset of bytes to read
     [FieldOffset(0x40)] public long lastDataOffset; // Last? offset read
-    [FieldOffset(0x48)] public ReplayHeader replayHeader;
+    [FieldOffset(0x48)] public Header replayHeader;
     [FieldOffset(0xA8)] public ChapterArray chapters; // ms of the first chapter determines the displayed time, but doesn't affect chapter times
     [FieldOffset(0x3B0)] public Utf8String contentTitle; // Current content name
     [FieldOffset(0x418)] public long nextDataSection; // 0x100000 if the lower half of the save/read area is next to be loaded into, 0x80000 if the upper half is
@@ -88,7 +110,7 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x5A0)] public int u0x5A0;
     [FieldOffset(0x5A4)] public byte u0x5A4;
     [FieldOffset(0x5A5)] public byte nextReplaySaveSlot;
-    [FieldOffset(0x5A8)] public ReplayHeader* savedReplayHeaders; // Pointer to the three saved replay headers
+    [FieldOffset(0x5A8)] public Header* savedReplayHeaders; // Pointer to the three saved replay headers
     [FieldOffset(0x5B0)] public IntPtr u0x5B0; // Pointer right after the file headers
     [FieldOffset(0x5B8)] public IntPtr u0x5B8; // Same as above?
     [FieldOffset(0x5C0)] public byte u0x5C0;
@@ -105,11 +127,11 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x6FC)] public float speed;
     [FieldOffset(0x700)] public float u0x700; // Seems to be 1 or 0, depending on if the speed is greater than 1
     [FieldOffset(0x704)] public byte selectedChapter; // 64 when playing, otherwise determines the current chapter being seeked to
-    [FieldOffset(0x708)] public int startingMS; // the ms considered 00:00:00
+    [FieldOffset(0x708)] public uint startingMS; // The ms considered 00:00:00
     [FieldOffset(0x70C)] public int u0x70C;
     [FieldOffset(0x710)] public short u0x710;
     [FieldOffset(0x712)] public byte status; // Bitfield determining the current status of the system
-    [FieldOffset(0x713)] public byte playbackControls; // Bitfield determining the current playback controls
+    [FieldOffset(0x713)] public byte playbackControls; // Bitfield determining the current playback controls (1 Waiting to enter playback, 2 ???, 4 ???, 8 ???, 16 ???, 32 ???, 64 In playback?, 128 ???)
     [FieldOffset(0x714)] public byte u0x714;
     // 0x715-0x718 is padding
 }
