@@ -82,8 +82,8 @@ public unsafe struct FFXIVReplay
     }
 
     [FieldOffset(0x0)] public int replayVersion; // No idea if this is the version of the game or the version of the replay system
-    [FieldOffset(0x8)] public IntPtr replayData; // Start of save/read area
-    [FieldOffset(0x10)] public IntPtr replayDataEnd; // End of save/read area
+    [FieldOffset(0x8)] public IntPtr replayStream; // Start of save/read area
+    [FieldOffset(0x10)] public IntPtr replayStreamEnd; // End of save/read area
     [FieldOffset(0x18)] public IntPtr u0x18; // Same as above?
     // 0x20-0x30 Padding?
     [FieldOffset(0x30)] public long dataOffset; // Next? offset of bytes to read from the save/read area (up to 1MB)

@@ -4,13 +4,14 @@ using System.Runtime.InteropServices;
 using Dalamud.Hooking;
 using Dalamud.Logging;
 using Dalamud.Utility.Signatures;
+using FFXIVClientStructs.FFXIV.Client.System.Framework;
 
 namespace ARealmRecorded;
 
 public unsafe class Game
 {
-    private static readonly string replayFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games", "FINAL FANTASY XIV - A Realm Reborn", "replay");
-    private static bool replayLoaded = false;
+    private static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPath, "replay");
+    private static bool replayLoaded;
     private static IntPtr replayBytesPtr;
 
     private static readonly Memory.Replacer alwaysRecordReplacer = new("24 06 3C 02 75 08 48 8B CB E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
