@@ -131,7 +131,7 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x70C)] public int u0x70C;
     [FieldOffset(0x710)] public short u0x710;
     [FieldOffset(0x712)] public byte status; // Bitfield determining the current status of the system
-    [FieldOffset(0x713)] public byte playbackControls; // Bitfield determining the current playback controls (1 Waiting to enter playback, 2 ???, 4 ???, 8 ???, 16 ???, 32 ???, 64 In playback?, 128 ???)
+    [FieldOffset(0x713)] public byte playbackControls; // Bitfield determining the current playback controls (1 Waiting to enter playback, 2 ???, 4 ???, 8 Paused, 16 Chapter???, 32 Chapter???, 64 In playback?, 128 Unused?)
     [FieldOffset(0x714)] public byte u0x714;
     // 0x715-0x718 is padding
 }
