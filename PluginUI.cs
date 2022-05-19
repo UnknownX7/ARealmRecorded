@@ -33,6 +33,8 @@ public static class PluginUI
                 Game.ffxivReplay->speed = s == Game.ffxivReplay->speed ? 1 : s;
         }
 
+        ImGui.Checkbox("Quick Chapter Load", ref Game.quickLoadEnabled);
+
         ImGui.End();
     }
 }

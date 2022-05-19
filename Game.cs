@@ -17,6 +17,10 @@ public unsafe class Game
     private static readonly Memory.Replacer alwaysRecordReplacer = new("24 06 3C 02 75 08 48 8B CB E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
     private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
 
+    public static bool quickLoadEnabled = true;
+    private static int quickLoadChapter = -1;
+    private static int seekingChapter = 0;
+
     [Signature("76 BA 48 8D 0D", ScanType = ScanType.StaticAddress)]
     public static Structures.FFXIVReplay* ffxivReplay;
 
@@ -56,8 +60,25 @@ public unsafe class Game
     private static void PlaybackUpdateDetour(Structures.FFXIVReplay* ffxivReplay)
     {
         PlaybackUpdateHook.Original(ffxivReplay);
+
+        if ((ffxivReplay->playbackControls & 4) == 0)
+        {
+            if (ffxivReplay->chapters[0]->type == 1) // For some reason the barrier dropping in dungeons is 5, but in trials it's 1
+                ffxivReplay->chapters[0]->type = 5;
+            return;
+        }
+
+        if (!replayLoaded) return;
+
         ffxivReplay->dataLoadType = 0;
         ffxivReplay->dataOffset = 0;
+
+        if (quickLoadChapter < 2) return;
+
+        var seekedTime = ffxivReplay->chapters[seekingChapter]->ms / 1000f;
+        if (seekedTime > ffxivReplay->seek) return;
+
+        DoQuickLoad();
     }
 
     private delegate Structures.FFXIVReplay.ReplayDataSegment* GetReplayDataSegmentDelegate(Structures.FFXIVReplay* ffxivReplay);
@@ -76,6 +97,12 @@ public unsafe class Game
     private static void OnSetChapterDetour(Structures.FFXIVReplay* ffxivReplay, byte chapter)
     {
         OnSetChapterHook.Original(ffxivReplay, chapter);
+
+        if (!quickLoadEnabled || chapter <= 0 || ffxivReplay->chapters.length < 2) return;
+
+        quickLoadChapter = chapter;
+        seekingChapter = -1;
+        DoQuickLoad();
     }
 
     public static void ReadReplay(int slot) => ReadReplay($"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat");
@@ -112,6 +139,67 @@ public unsafe class Game
         ffxivReplay->chapters = *(Structures.FFXIVReplay.ChapterArray*)(replayBytesPtr + sizeof(Structures.FFXIVReplay.Header));
     }
 
+    public static byte FindNextChapterType(byte startChapter, byte type)
+    {
+        for (byte i = (byte)(startChapter + 1); i < ffxivReplay->chapters.length; i++)
+        {
+            if (ffxivReplay->chapters[i]->type == type) return i;
+        }
+        return 0;
+    }
+
+    public static byte GetPreviousStartChapter(byte chapter)
+    {
+        var foundPreviousStart = false;
+        for (byte i = chapter; i > 0; i--)
+        {
+            if (ffxivReplay->chapters[i]->type != 2) continue;
+
+            if (foundPreviousStart)
+                return i;
+            foundPreviousStart = true;
+        }
+        return 0;
+    }
+
+    public static void JumpToChapter(byte chapter)
+    {
+        var jumpChapter = ffxivReplay->chapters[chapter];
+        ffxivReplay->overallDataOffset = jumpChapter->offset;
+        ffxivReplay->seek = jumpChapter->ms / 1000f;
+    }
+
+    public static void ReplaySection(byte from, byte to)
+    {
+        if (from != 0 && ffxivReplay->overallDataOffset < ffxivReplay->chapters[from]->offset)
+            JumpToChapter(from);
+
+        seekingChapter = to;
+        if (seekingChapter >= quickLoadChapter)
+            quickLoadChapter = -1;
+    }
+
+    public static void DoQuickLoad()
+    {
+        if (seekingChapter < 0)
+        {
+            ReplaySection(0, 1);
+            return;
+        }
+
+        var nextEvent = FindNextChapterType((byte)seekingChapter, 4);
+        if (nextEvent != 0 && nextEvent < quickLoadChapter - 1)
+        {
+            var nextCountdown = FindNextChapterType(nextEvent, 1);
+            if (nextCountdown == 0 || nextCountdown > nextEvent + 2)
+                nextCountdown = (byte)(nextEvent + 1);
+            ReplaySection(nextEvent, nextCountdown);
+            return;
+        }
+
+        ReplaySection(GetPreviousStartChapter((byte)quickLoadChapter), (byte)quickLoadChapter);
+    }
+
     // E8 ?? ?? ?? ?? EB 10 41 83 78 04 00 EndPlayback
     // 48 89 5C 24 10 55 48 8B EC 48 81 EC 80 00 00 00 48 8B 05 Something to do with loading
     // E8 ?? ?? ?? ?? 84 C0 74 8D SetChapter
@@ -127,8 +215,8 @@ public unsafe class Game
         GetReplayDataSegmentHook.Enable();
         OnSetChapterHook.Enable();
 
-        if ((ffxivReplay->playbackControls & 0x40) != 0)
-            ReadReplay(ffxivReplay->currentReplaySlot);
+        if ((ffxivReplay->playbackControls & 4) != 0 && ffxivReplay->fileStream != IntPtr.Zero && *(long*)ffxivReplay->fileStream == 0)
+            ReadReplay(ffxivReplay->currentReplaySlot); //ReadReplay(ARealmRecorded.Config.LastLoadedReplay);
     }
 
     public static void Dispose()
@@ -141,7 +229,7 @@ public unsafe class Game
 
         if (!replayLoaded) return;
 
-        if ((ffxivReplay->playbackControls & 64) != 0)
+        if ((ffxivReplay->playbackControls & 4) != 0)
         {
             ffxivReplay->playbackControls |= 8; // Pause
             ARealmRecorded.PrintError("Plugin was unloaded, playback will be broken if the plugin or recording is not reloaded.");

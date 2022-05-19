@@ -39,7 +39,7 @@ public unsafe struct FFXIVReplay
         [StructLayout(LayoutKind.Sequential, Size = 0xC)]
         public struct Chapter
         {
-            public int type; // 1 = start/restart, 2 = checkpoint, 3 = ???, 4 = event cutscene, 5 = barrier down? displayed as start/restart
+            public int type; // 1 = Countdown, 2 = Start/Restart, 3 = ???, 4 = Event Cutscene, 5 = Barrier down (displayed as Start/Restart)
             public uint offset; // byte offset?
             public uint ms; // ms from the start of the instance
         }
@@ -82,9 +82,9 @@ public unsafe struct FFXIVReplay
     }
 
     [FieldOffset(0x0)] public int replayVersion; // No idea if this is the version of the game or the version of the replay system
-    [FieldOffset(0x8)] public IntPtr replayStream; // Start of save/read area
-    [FieldOffset(0x10)] public IntPtr replayStreamEnd; // End of save/read area
-    [FieldOffset(0x18)] public IntPtr u0x18; // Same as above?
+    [FieldOffset(0x8)] public IntPtr fileStream; // Start of save/read area
+    [FieldOffset(0x10)] public IntPtr fileStreamNextWrite; // Next area to be written to while recording
+    [FieldOffset(0x18)] public IntPtr fileStreamEnd; // End of save/read area
     // 0x20-0x30 Padding?
     [FieldOffset(0x30)] public long dataOffset; // Next? offset of bytes to read from the save/read area (up to 1MB)
     [FieldOffset(0x38)] public long overallDataOffset; // Overall (next?) offset of bytes to read
@@ -130,8 +130,8 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x708)] public uint startingMS; // The ms considered 00:00:00
     [FieldOffset(0x70C)] public int u0x70C;
     [FieldOffset(0x710)] public short u0x710;
-    [FieldOffset(0x712)] public byte status; // Bitfield determining the current status of the system
-    [FieldOffset(0x713)] public byte playbackControls; // Bitfield determining the current playback controls (1 Waiting to enter playback, 2 ???, 4 ???, 8 Paused, 16 Chapter???, 32 Chapter???, 64 In playback?, 128 Unused?)
+    [FieldOffset(0x712)] public byte status; // Bitfield determining the current status of the system (1 Just logged in?, 2 Can record, 4 ???, 8 ???, 16 Recording?, 32 Recording?, 64 Barrier down, 128 In playback after duty begins?)
+    [FieldOffset(0x713)] public byte playbackControls; // Bitfield determining the current playback controls (1 Waiting to enter playback, 2 ???, 4 In playback (blocks packets), 8 Paused, 16 Chapter???, 32 Chapter???, 64 In duty?, 128 In playback???)
     [FieldOffset(0x714)] public byte u0x714;
     // 0x715-0x718 is padding
 }
