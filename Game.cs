@@ -11,7 +11,7 @@ namespace ARealmRecorded;
 
 public unsafe class Game
 {
-    private static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPath, "replay");
+    private static readonly string replayFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games", "FINAL FANTASY XIV - A Realm Reborn", "replay"); // Path.Combine(Framework.Instance()->UserPath, "replay");
     private static bool replayLoaded;
     private static IntPtr replayBytesPtr;
 
