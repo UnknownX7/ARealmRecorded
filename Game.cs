@@ -176,6 +176,7 @@ public unsafe class Game
             replayBytesPtr = Marshal.AllocHGlobal((int)fs.Length);
             _ = fs.Read(new Span<byte>((void*)replayBytesPtr, (int)fs.Length));
             replayLoaded = true;
+            ARealmRecorded.Config.LastLoadedReplay = replayName;
 
             if (ffxivReplay->dataLoadType != 7) return;
 
@@ -366,7 +367,7 @@ public unsafe class Game
         ExecuteCommandHook.Enable();
 
         if (InPlayback && ffxivReplay->fileStream != IntPtr.Zero && *(long*)ffxivReplay->fileStream == 0)
-            ReadReplay(ffxivReplay->currentReplaySlot); //ReadReplay(ARealmRecorded.Config.LastLoadedReplay);
+            ReadReplay(ARealmRecorded.Config.LastLoadedReplay);
     }
 
     public static void Dispose()

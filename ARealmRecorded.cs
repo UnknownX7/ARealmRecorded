@@ -15,8 +15,8 @@ public class ARealmRecorded : IDalamudPlugin
         Plugin = this;
         DalamudApi.Initialize(this, pluginInterface);
 
-        //Config = (Configuration)DalamudApi.PluginInterface.GetPluginConfig() ?? new();
-        //Config.Initialize();
+        Config = (Configuration)DalamudApi.PluginInterface.GetPluginConfig() ?? new();
+        Config.Initialize();
 
         try
         {
@@ -53,7 +53,7 @@ public class ARealmRecorded : IDalamudPlugin
     {
         if (!disposing) return;
 
-        //Config.Save();
+        Config.Save();
 
         //DalamudApi.Framework.Update -= Update;
         DalamudApi.PluginInterface.UiBuilder.Draw -= Draw;
