@@ -1,3 +1,5 @@
+using System;
+using System.Numerics;
 using Dalamud.Interface;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
@@ -8,14 +10,56 @@ public static class PluginUI
 {
     public static readonly float[] presetSpeeds = { 0.5f, 1, 2, 5, 10, 20, 60 };
 
-    public static unsafe void Draw()
+    public static void Draw()
+    {
+        DrawExpandedDutyRecorderMenu();
+        DrawExpandedPlaybackControls();
+    }
+
+    public static unsafe void DrawExpandedDutyRecorderMenu()
+    {
+        if (DalamudApi.GameGui.GameUiHidden) return;
+
+        var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting", 1);
+        if (addon == null || !addon->IsVisible || (addon->Flags & 16) == 0) return;
+
+        var agent = DalamudApi.GameGui.FindAgentInterface((IntPtr)addon);
+        if (agent == IntPtr.Zero) return;
+
+        //var units = AtkStage.GetSingleton()->RaptureAtkUnitManager->AtkUnitManager.FocusedUnitsList;
+        //var count = units.Count;
+        //if (count > 0 && (&units.AtkUnitEntries)[count - 1] != addon) return;
+
+        var addonW = addon->RootNode->GetWidth() * addon->Scale;
+        var addonH = (addon->RootNode->GetHeight() - 11) * addon->Scale;
+        ImGuiHelpers.ForceNextWindowMainViewport();
+        ImGui.SetNextWindowPos(new(addon->X + addonW, addon->Y));
+        ImGui.SetNextWindowSize(new Vector2(300 * ImGuiHelpers.GlobalScale, addonH));
+        ImGui.Begin("Expanded Duty Recorder", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
+
+        ImGui.PushFont(UiBuilder.IconFont);
+        if (ImGui.Button(FontAwesomeIcon.SyncAlt.ToIconString()))
+            Game.GetReplayList();
+        ImGui.PopFont();
+
+        ImGui.BeginChild("Recordings List", ImGui.GetContentRegionAvail(), true);
+        foreach (var (file, header) in Game.ReplayList)
+        {
+            if (ImGui.Selectable($"{file}", file == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
+                Game.SetDutyRecorderMenuSelection(agent, file, header);
+        }
+        ImGui.EndChild();
+    }
+
+    public static unsafe void DrawExpandedPlaybackControls()
     {
         if (DalamudApi.GameGui.GameUiHidden || Game.ffxivReplay->selectedChapter != 64 || (Game.ffxivReplay->status & 0x80) == 0) return;
 
         var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplayPlayer", 1);
         if (addon == null || !addon->IsVisible) return;
 
-        ImGui.Begin("Expanded Replay Settings", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
+        ImGuiHelpers.ForceNextWindowMainViewport();
+        ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
         ImGui.SetWindowPos(new(addon->X, addon->Y - ImGui.GetWindowHeight()));
 
         ImGui.PushFont(UiBuilder.IconFont);

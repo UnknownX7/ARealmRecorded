@@ -29,6 +29,19 @@ public unsafe struct FFXIVReplay
         [FieldOffset(0x4C)] public short u0x4C; // Padding? Seems to be unused
         [FieldOffset(0x4E)] public fixed ushort npcNames[7]; // Determines displayed names using the BNpcName sheet
         [FieldOffset(0x5C)] public int u0x5C; // Probably just padding
+
+        private static readonly byte[] validBytes = { 0x46, 0x46, 0x58, 0x49, 0x56, 0x52, 0x45, 0x50, 0x4C, 0x41, 0x59 };
+        public bool IsValid
+        {
+            get {
+                for (int i = 0; i < validBytes.Length; i++)
+                {
+                    if (validBytes[i] != FFXIVREPLAY[i])
+                        return false;
+                }
+                return true;
+            }
+        }
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 0xC * 64)]

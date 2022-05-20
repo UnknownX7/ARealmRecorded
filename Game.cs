@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Dalamud.Hooking;
 using Dalamud.Logging;
@@ -11,16 +13,22 @@ namespace ARealmRecorded;
 
 public unsafe class Game
 {
+    private const int replayHeaderSize = 0x364;
     private static readonly string replayFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games", "FINAL FANTASY XIV - A Realm Reborn", "replay"); // Path.Combine(Framework.Instance()->UserPath, "replay");
     private static bool replayLoaded;
     private static IntPtr replayBytesPtr;
-
-    private static readonly Memory.Replacer alwaysRecordReplacer = new("24 06 3C 02 75 08 48 8B CB E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
-    private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
+    public static string lastSelectedReplay;
+    private static Structures.FFXIVReplay.Header lastSelectedHeader;
 
     public static bool quickLoadEnabled = true;
     private static int quickLoadChapter = -1;
     private static int seekingChapter = 0;
+
+    private static List<(string, Structures.FFXIVReplay.Header)> replayList;
+    public static List<(string, Structures.FFXIVReplay.Header)> ReplayList => replayList ?? GetReplayList();
+
+    private static readonly Memory.Replacer alwaysRecordReplacer = new("24 06 3C 02 75 08 48 8B CB E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
+    private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
 
     [Signature("76 BA 48 8D 0D", ScanType = ScanType.StaticAddress)]
     public static Structures.FFXIVReplay* ffxivReplay;
@@ -35,9 +43,9 @@ public unsafe class Game
     private static delegate* unmanaged<Structures.FFXIVReplay*, byte, byte> addRecordingChapter;
     public static bool AddRecordingChapter(byte type) => addRecordingChapter(ffxivReplay, type) != 0;
 
-    [Signature("48 89 5C 24 08 57 48 83 EC 30 F6 81 12 07 00 00 04")] // E8 ?? ?? ?? ?? EB 2B 48 8B CB 89 53 2C (+0x14)
-    private static delegate* unmanaged<Structures.FFXIVReplay*, byte, byte> requestPlayback;
-    public static bool RequestPlayback(byte slot) => requestPlayback(ffxivReplay, slot) != 0;
+    [Signature("48 89 5C 24 10 57 48 81 EC 70 04 00 00")]
+    private static delegate* unmanaged<IntPtr, void> displaySelectedDutyRecording;
+    public static void DisplaySelectedDutyRecording(IntPtr agent) => displaySelectedDutyRecording(agent);
 
     private delegate void InitializeRecordingDelegate(Structures.FFXIVReplay* ffxivReplay);
     [Signature("40 55 57 48 8D 6C 24 B1 48 81 EC 98 00 00 00", DetourName = "InitializeRecordingDetour")]
@@ -48,14 +56,46 @@ public unsafe class Game
         BeginRecording();
     }
 
+    private delegate byte RequestPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte slot);
+    [Signature("48 89 5C 24 08 57 48 83 EC 30 F6 81 12 07 00 00 04")] // E8 ?? ?? ?? ?? EB 2B 48 8B CB 89 53 2C (+0x14)
+    private static Hook<RequestPlaybackDelegate> RequestPlaybackHook;
+    public static byte RequestPlaybackDetour(Structures.FFXIVReplay* ffxivReplay, byte slot)
+    {
+        var customSlot = slot == 100;
+        Structures.FFXIVReplay.Header prevHeader = new();
+
+        if (customSlot)
+        {
+            slot = 0;
+            prevHeader = ffxivReplay->savedReplayHeaders[0];
+            ffxivReplay->savedReplayHeaders[0] = lastSelectedHeader;
+        }
+        else
+        {
+            lastSelectedReplay = null;
+        }
+
+        var ret = RequestPlaybackHook.Original(ffxivReplay, slot);
+
+        if (customSlot)
+            ffxivReplay->savedReplayHeaders[0] = prevHeader;
+
+        return ret;
+    }
+
     private delegate void BeginPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte canEnter);
     [Signature("E8 ?? ?? ?? ?? 0F B7 17 48 8B CB", DetourName = "BeginPlaybackDetour")]
     private static Hook<BeginPlaybackDelegate> BeginPlaybackHook;
     private static void BeginPlaybackDetour(Structures.FFXIVReplay* ffxivReplay, byte allowed)
     {
+
         BeginPlaybackHook.Original(ffxivReplay, allowed);
-        if (allowed != 0)
+        if (allowed == 0) return;
+
+        if (string.IsNullOrEmpty(lastSelectedReplay))
             ReadReplay(ffxivReplay->currentReplaySlot);
+        else
+            ReadReplay(lastSelectedReplay);
     }
 
     [Signature("E8 ?? ?? ?? ?? F6 83 12 07 00 00 04", DetourName = "PlaybackUpdateDetour")]
@@ -93,7 +133,7 @@ public unsafe class Game
             return GetReplayDataSegmentHook.Original(ffxivReplay);
         if (ffxivReplay->overallDataOffset >= ffxivReplay->replayHeader.replayLength)
             return null;
-        return (Structures.FFXIVReplay.ReplayDataSegment*)((long)replayBytesPtr + 0x364 + ffxivReplay->overallDataOffset);
+        return (Structures.FFXIVReplay.ReplayDataSegment*)((long)replayBytesPtr + replayHeaderSize + ffxivReplay->overallDataOffset);
     }
 
     private delegate void OnSetChapterDelegate(Structures.FFXIVReplay* ffxivReplay, byte chapter);
@@ -143,6 +183,27 @@ public unsafe class Game
         {
             PluginLog.Error($"Failed to read replay {replayName}\n{e}");
             replayLoaded = false;
+        }
+    }
+
+    public static Structures.FFXIVReplay.Header? ReadReplayHeader(string replayName)
+    {
+        try
+        {
+            var file = new FileInfo(Path.Combine(replayFolder, replayName));
+            using var fs = File.OpenRead(file.FullName);
+            var bytes = new byte[replayHeaderSize];
+            if (fs.Read(bytes, 0, replayHeaderSize) != replayHeaderSize)
+                return null;
+            fixed (byte* ptr = &bytes[0])
+            {
+                return *(Structures.FFXIVReplay.Header*)ptr;
+            }
+        }
+        catch (Exception e)
+        {
+            PluginLog.Error($"Failed to read replay header {replayName}\n{e}");
+            return null;
         }
     }
 
@@ -227,8 +288,36 @@ public unsafe class Game
         return ((delegate* unmanaged<UIModule*, byte, long, byte>)uiModule->vfunc[74])(uiModule, 0, focus != null ? focus.ObjectId : 0xE0000000) != 0;
     }
 
+    public static List<(string, Structures.FFXIVReplay.Header)> GetReplayList()
+    {
+        var directory = new DirectoryInfo(replayFolder);
+        var list = (from file in directory.GetFiles()
+            where file.Extension == ".dat"
+            let header = ReadReplayHeader(file.Name)
+            where header is { IsValid: true }
+            select (file.Name, header.Value)
+            ).ToList();
+        replayList = list;
+        return replayList;
+    }
+
+    public static void SetDutyRecorderMenuSelection(IntPtr agent, string file, Structures.FFXIVReplay.Header header)
+    {
+        header.localCID = DalamudApi.ClientState.LocalContentId;
+        lastSelectedReplay = file;
+        lastSelectedHeader = header;
+        *(byte*)(agent + 0x2C) = 0;
+        *(byte*)(agent + 0x2A) = 1;
+        var prevHeader = ffxivReplay->savedReplayHeaders[0];
+        ffxivReplay->savedReplayHeaders[0] = header;
+        DisplaySelectedDutyRecording(agent);
+        ffxivReplay->savedReplayHeaders[0] = prevHeader;
+        *(byte*)(agent + 0x2C) = 100;
+    }
+
     // 48 89 5C 24 08 57 48 83 EC 20 33 FF 48 8B D9 89 39 48 89 79 08 ctor
     // E8 ?? ?? ?? ?? 48 8D 8B 48 0B 00 00 E8 ?? ?? ?? ?? 48 8D 8B 38 0B 00 00 dtor
+    // 40 53 48 83 EC 20 80 A1 12 07 00 00 F3 Initialize
     // E8 ?? ?? ?? ?? EB 10 41 83 78 04 00 EndPlayback
     // 48 89 5C 24 10 55 48 8B EC 48 81 EC 80 00 00 00 48 8B 05 Something to do with loading
     // E8 ?? ?? ?? ?? 84 C0 74 8D SetChapter
@@ -244,6 +333,7 @@ public unsafe class Game
         SignatureHelper.Initialise(new Game());
         InitializeRecordingHook.Enable();
         PlaybackUpdateHook.Enable();
+        RequestPlaybackHook.Enable();
         BeginPlaybackHook.Enable();
         GetReplayDataSegmentHook.Enable();
         OnSetChapterHook.Enable();
@@ -257,6 +347,7 @@ public unsafe class Game
     {
         InitializeRecordingHook?.Dispose();
         PlaybackUpdateHook?.Dispose();
+        RequestPlaybackHook?.Dispose();
         BeginPlaybackHook?.Dispose();
         GetReplayDataSegmentHook?.Dispose();
         OnSetChapterHook?.Dispose();
