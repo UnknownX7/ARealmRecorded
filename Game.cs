@@ -91,6 +91,8 @@ public unsafe class Game
     {
         if (!replayLoaded)
             return GetReplayDataSegmentHook.Original(ffxivReplay);
+        if (ffxivReplay->overallDataOffset >= ffxivReplay->replayHeader.replayLength)
+            return null;
         return (Structures.FFXIVReplay.ReplayDataSegment*)((long)replayBytesPtr + 0x364 + ffxivReplay->overallDataOffset);
     }
 
