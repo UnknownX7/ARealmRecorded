@@ -21,7 +21,7 @@ public unsafe struct FFXIVReplay
         [FieldOffset(0x1C)] public uint ms;
         [FieldOffset(0x20)] public ushort contentID;
         // 0x22-0x28 Padding? Does not appear to be used
-        [FieldOffset(0x28)] public byte info; // Bitfield, 0b001 = Up to date, 0b010 = Locked, 0b100 = Duty completed
+        [FieldOffset(0x28)] public byte info; // Bitfield, 1 = Up to date, 2 = Locked, 4 = Duty completed
         // 0x29-0x30 Padding? Does not appear to be used
         [FieldOffset(0x30)] public ulong localCID; // ID of the recorder (Has to match the logged in character)
         [FieldOffset(0x38)] public fixed byte jobs[8]; // Job ID of each player
@@ -45,6 +45,8 @@ public unsafe struct FFXIVReplay
         }
 
         public bool IsPlayable => replayVersion == Game.ffxivReplay->replayVersion && u0xC == 4;
+
+        public bool IsLocked => IsValid && IsPlayable && (info & 2) != 0;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 0xC * 64)]

@@ -53,6 +53,7 @@ public unsafe class Game
     private static Hook<InitializeRecordingDelegate> InitializeRecordingHook;
     private static void InitializeRecordingDetour(Structures.FFXIVReplay* ffxivReplay)
     {
+        FixNextReplaySaveSlot();
         InitializeRecordingHook.Original(ffxivReplay);
         BeginRecording();
     }
@@ -216,6 +217,23 @@ public unsafe class Game
         if (!replayLoaded) return;
         ffxivReplay->replayHeader = *(Structures.FFXIVReplay.Header*)replayBytesPtr;
         ffxivReplay->chapters = *(Structures.FFXIVReplay.ChapterArray*)(replayBytesPtr + sizeof(Structures.FFXIVReplay.Header));
+    }
+
+    public static void FixNextReplaySaveSlot()
+    {
+        if (!ffxivReplay->savedReplayHeaders[ffxivReplay->nextReplaySaveSlot].IsLocked) return;
+
+        for (byte i = 0; i < 3; i++)
+        {
+            if (i != 2)
+            {
+                var header = ffxivReplay->savedReplayHeaders[i];
+                if (header.IsLocked) continue;
+            }
+
+            ffxivReplay->nextReplaySaveSlot = i;
+            return;
+        }
     }
 
     public static byte FindNextChapterType(byte startChapter, byte type)
