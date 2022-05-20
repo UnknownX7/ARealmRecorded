@@ -10,6 +10,8 @@ public unsafe struct FFXIVReplay
     [StructLayout(LayoutKind.Explicit, Size = 0x60)]
     public struct Header
     {
+        private static readonly byte[] validBytes = { 0x46, 0x46, 0x58, 0x49, 0x56, 0x52, 0x45, 0x50, 0x4C, 0x41, 0x59 };
+
         [FieldOffset(0x0)] public fixed byte FFXIVREPLAY[12]; // FFXIVREPLAY
         [FieldOffset(0xC)] public short u0xC; // Always 4? Possibly replay system version, wont play if not 4
         [FieldOffset(0xE)] public short u0xE; // Always 3? Seems to be unused
@@ -30,7 +32,6 @@ public unsafe struct FFXIVReplay
         [FieldOffset(0x4E)] public fixed ushort npcNames[7]; // Determines displayed names using the BNpcName sheet
         [FieldOffset(0x5C)] public int u0x5C; // Probably just padding
 
-        private static readonly byte[] validBytes = { 0x46, 0x46, 0x58, 0x49, 0x56, 0x52, 0x45, 0x50, 0x4C, 0x41, 0x59 };
         public bool IsValid
         {
             get {
@@ -42,6 +43,8 @@ public unsafe struct FFXIVReplay
                 return true;
             }
         }
+
+        public bool IsPlayable => replayVersion == Game.ffxivReplay->replayVersion && u0xC == 4;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 0xC * 64)]

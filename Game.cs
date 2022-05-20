@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -24,8 +25,8 @@ public unsafe class Game
     private static int quickLoadChapter = -1;
     private static int seekingChapter = 0;
 
-    private static List<(string, Structures.FFXIVReplay.Header)> replayList;
-    public static List<(string, Structures.FFXIVReplay.Header)> ReplayList => replayList ?? GetReplayList();
+    private static List<(FileInfo, Structures.FFXIVReplay.Header)> replayList;
+    public static List<(FileInfo, Structures.FFXIVReplay.Header)> ReplayList => replayList ?? GetReplayList();
 
     private static readonly Memory.Replacer alwaysRecordReplacer = new("24 06 3C 02 75 08 48 8B CB E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
     private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
@@ -159,7 +160,9 @@ public unsafe class Game
         ExecuteCommandHook.Original(a1, a2, a3, a4, a5);
     }
 
-    public static void ReadReplay(int slot) => ReadReplay($"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat");
+    public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
+
+    public static void ReadReplay(int slot) => ReadReplay(GetReplaySlotName(slot));
 
     public static void ReadReplay(string replayName)
     {
@@ -288,31 +291,54 @@ public unsafe class Game
         return ((delegate* unmanaged<UIModule*, byte, long, byte>)uiModule->vfunc[74])(uiModule, 0, focus != null ? focus.ObjectId : 0xE0000000) != 0;
     }
 
-    public static List<(string, Structures.FFXIVReplay.Header)> GetReplayList()
+    public static List<(FileInfo, Structures.FFXIVReplay.Header)> GetReplayList()
     {
         var directory = new DirectoryInfo(replayFolder);
         var list = (from file in directory.GetFiles()
             where file.Extension == ".dat"
             let header = ReadReplayHeader(file.Name)
             where header is { IsValid: true }
-            select (file.Name, header.Value)
+            select (file, header.Value)
             ).ToList();
         replayList = list;
         return replayList;
     }
 
-    public static void SetDutyRecorderMenuSelection(IntPtr agent, string file, Structures.FFXIVReplay.Header header)
+    public static void SetDutyRecorderMenuSelection(IntPtr agent, byte slot)
+    {
+        *(byte*)(agent + 0x2C) = slot;
+        *(byte*)(agent + 0x2A) = 1;
+        DisplaySelectedDutyRecording(agent);
+    }
+
+    public static void SetDutyRecorderMenuSelection(IntPtr agent, string fileName, Structures.FFXIVReplay.Header header)
     {
         header.localCID = DalamudApi.ClientState.LocalContentId;
-        lastSelectedReplay = file;
+        lastSelectedReplay = fileName;
         lastSelectedHeader = header;
-        *(byte*)(agent + 0x2C) = 0;
-        *(byte*)(agent + 0x2A) = 1;
         var prevHeader = ffxivReplay->savedReplayHeaders[0];
         ffxivReplay->savedReplayHeaders[0] = header;
-        DisplaySelectedDutyRecording(agent);
+        SetDutyRecorderMenuSelection(agent, 0);
         ffxivReplay->savedReplayHeaders[0] = prevHeader;
         *(byte*)(agent + 0x2C) = 100;
+    }
+
+    public static void CopyRecordingIntoSlot(IntPtr agent, FileInfo file, Structures.FFXIVReplay.Header header, byte slot)
+    {
+        if (slot > 2) return;
+        file.CopyTo(Path.Combine(file.DirectoryName!, GetReplaySlotName(slot)), true);
+        ffxivReplay->savedReplayHeaders[slot] = header;
+        SetDutyRecorderMenuSelection(agent, slot);
+        GetReplayList();
+    }
+
+    public static void OpenReplayFolder()
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = replayFolder,
+            UseShellExecute = true
+        });
     }
 
     // 48 89 5C 24 08 57 48 83 EC 20 33 FF 48 8B D9 89 39 48 89 79 08 ctor

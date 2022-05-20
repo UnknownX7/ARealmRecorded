@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Numerics;
 using Dalamud.Interface;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -9,6 +10,9 @@ namespace ARealmRecorded;
 public static class PluginUI
 {
     public static readonly float[] presetSpeeds = { 0.5f, 1, 2, 5, 10, 20, 60 };
+
+    private static int editingRecording = -1;
+    private static bool focusNameInput = false;
 
     public static void Draw()
     {
@@ -40,13 +44,69 @@ public static class PluginUI
         ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.SyncAlt.ToIconString()))
             Game.GetReplayList();
+        ImGui.SameLine();
+        if (ImGui.Button(FontAwesomeIcon.FolderOpen.ToIconString()))
+            Game.OpenReplayFolder();
         ImGui.PopFont();
 
         ImGui.BeginChild("Recordings List", ImGui.GetContentRegionAvail(), true);
-        foreach (var (file, header) in Game.ReplayList)
+        for (int i = 0; i < Game.ReplayList.Count; i++)
         {
-            if (ImGui.Selectable($"{file}", file == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
-                Game.SetDutyRecorderMenuSelection(agent, file, header);
+            var (file, header) = Game.ReplayList[i];
+            var name = file.Name;
+
+            if (editingRecording < 0 || editingRecording != i)
+            {
+                var isPlayable = header.IsPlayable;
+
+                if (!isPlayable)
+                    ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
+
+                if (ImGui.Selectable($"{name}", name == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
+                    Game.SetDutyRecorderMenuSelection(agent, name, header);
+
+                if (!isPlayable)
+                    ImGui.PopStyleColor();
+
+                if (ImGui.BeginPopupContextItem())
+                {
+                    for (byte j = 0; j < 3; j++)
+                    {
+                        if (ImGui.Selectable($"Copy to slot #{j + 1}"))
+                            Game.CopyRecordingIntoSlot(agent, file, header, j);
+                    }
+                    ImGui.EndPopup();
+                }
+
+                if (!ImGui.IsItemHovered() || !ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) continue;
+
+                editingRecording = i;
+                focusNameInput = true;
+            }
+            else
+            {
+                var nameWithoutExtension = name[..name.LastIndexOf('.')];
+                ImGui.InputText("##SetName", ref nameWithoutExtension, 64, ImGuiInputTextFlags.AutoSelectAll);
+
+                if (focusNameInput)
+                {
+                    ImGui.SetKeyboardFocusHere();
+                    focusNameInput = false;
+                }
+
+                if (!ImGui.IsItemDeactivated()) continue;
+
+                editingRecording = -1;
+
+                try
+                {
+                    file.MoveTo(Path.Combine(file.DirectoryName!, $"{nameWithoutExtension}.dat"));
+                }
+                catch (Exception e)
+                {
+                    ARealmRecorded.PrintError($"Failed to rename recording\n{e}");
+                }
+            }
         }
         ImGui.EndChild();
     }
