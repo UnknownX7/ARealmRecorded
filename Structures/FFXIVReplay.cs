@@ -21,7 +21,7 @@ public unsafe struct FFXIVReplay
         // 0x22-0x28 Padding? Does not appear to be used
         [FieldOffset(0x28)] public byte info; // Bitfield, 0b001 = Up to date, 0b010 = Locked, 0b100 = Duty completed
         // 0x29-0x30 Padding? Does not appear to be used
-        [FieldOffset(0x30)] public ulong localCID; // ID of the recorder
+        [FieldOffset(0x30)] public ulong localCID; // ID of the recorder (Has to match the logged in character)
         [FieldOffset(0x38)] public fixed byte jobs[8]; // Job ID of each player
         [FieldOffset(0x40)] public byte playerIndex; // The index of the recorder in the jobs array
         [FieldOffset(0x44)] public int u0x44; // Always 772? Seems to be unused

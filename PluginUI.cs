@@ -25,6 +25,8 @@ public static class PluginUI
         if (ImGui.Button(FontAwesomeIcon.Video.ToIconString()))
             Game.EnterIdleCamera();
         ImGui.PopFont();
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Enters idle camera on the current focus target.");
         ImGui.SameLine();
         ImGui.Checkbox("Quick Chapter Load", ref Game.quickLoadEnabled);
 

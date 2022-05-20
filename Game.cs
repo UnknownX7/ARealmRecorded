@@ -221,7 +221,8 @@ public unsafe class Game
     public static bool EnterIdleCamera()
     {
         var uiModule = Framework.Instance()->GetUiModule();
-        return ((delegate* unmanaged<UIModule*, byte, long, byte>)uiModule->vfunc[74])(uiModule, 1, 0) != 0;
+        var focus = DalamudApi.TargetManager.FocusTarget;
+        return ((delegate* unmanaged<UIModule*, byte, long, byte>)uiModule->vfunc[74])(uiModule, 0, focus != null ? focus.ObjectId : 0xE0000000) != 0;
     }
 
     // 48 89 5C 24 08 57 48 83 EC 20 33 FF 48 8B D9 89 39 48 89 79 08 ctor
