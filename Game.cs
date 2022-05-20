@@ -5,6 +5,7 @@ using Dalamud.Hooking;
 using Dalamud.Logging;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
+using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace ARealmRecorded;
 
@@ -23,6 +24,8 @@ public unsafe class Game
 
     [Signature("76 BA 48 8D 0D", ScanType = ScanType.StaticAddress)]
     public static Structures.FFXIVReplay* ffxivReplay;
+
+    public static bool InPlayback => (ffxivReplay->playbackControls & 4) != 0;
 
     [Signature("40 53 48 83 EC 20 0F B6 81 12 07 00 00 48 8B D9 A8 04 74 5D")]
     private static delegate* unmanaged<Structures.FFXIVReplay*, byte, void> beginRecording;
@@ -103,6 +106,15 @@ public unsafe class Game
         quickLoadChapter = chapter;
         seekingChapter = -1;
         DoQuickLoad();
+    }
+
+    private delegate void ExecuteCommandDelegate(int a1, int a2, int a3, int a4, int a5);
+    [Signature("E8 ?? ?? ?? ?? 8D 43 0A")]
+    private static Hook<ExecuteCommandDelegate> ExecuteCommandHook;
+    private static void ExecuteCommandDetour(int a1, int a2, int a3, int a4, int a5)
+    {
+        if (a1 == 315 && InPlayback) return; // Block GPose and Idle Camera from sending packets
+        ExecuteCommandHook.Original(a1, a2, a3, a4, a5);
     }
 
     public static void ReadReplay(int slot) => ReadReplay($"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat");
@@ -200,9 +212,27 @@ public unsafe class Game
         ReplaySection(GetPreviousStartChapter((byte)quickLoadChapter), (byte)quickLoadChapter);
     }
 
+    public static bool EnterGroupPose()
+    {
+        var uiModule = Framework.Instance()->GetUiModule();
+        return ((delegate* unmanaged<UIModule*, byte>)uiModule->vfunc[71])(uiModule) != 0;
+    }
+
+    public static bool EnterIdleCamera()
+    {
+        var uiModule = Framework.Instance()->GetUiModule();
+        return ((delegate* unmanaged<UIModule*, byte, long, byte>)uiModule->vfunc[74])(uiModule, 1, 0) != 0;
+    }
+
+    // 48 89 5C 24 08 57 48 83 EC 20 33 FF 48 8B D9 89 39 48 89 79 08 ctor
+    // E8 ?? ?? ?? ?? 48 8D 8B 48 0B 00 00 E8 ?? ?? ?? ?? 48 8D 8B 38 0B 00 00 dtor
     // E8 ?? ?? ?? ?? EB 10 41 83 78 04 00 EndPlayback
     // 48 89 5C 24 10 55 48 8B EC 48 81 EC 80 00 00 00 48 8B 05 Something to do with loading
     // E8 ?? ?? ?? ?? 84 C0 74 8D SetChapter
+    // E8 ?? ?? ?? ?? 3C 40 73 4A GetCurrentChapter?
+    // F6 81 13 07 00 00 04 74 11 SetTimescale (No longer used by anything)
+    // 40 53 48 83 EC 20 F3 0F 10 81 00 07 00 00 48 8B D9 SetSoundTimescale1? Doesn't seem to work (Last function)
+    // E8 ?? ?? ?? ?? 44 0F B6 D8 C7 03 02 00 00 00 Function handling the UI buttons
 
     public static void Initialize()
     {
@@ -214,8 +244,9 @@ public unsafe class Game
         BeginPlaybackHook.Enable();
         GetReplayDataSegmentHook.Enable();
         OnSetChapterHook.Enable();
+        ExecuteCommandHook.Enable();
 
-        if ((ffxivReplay->playbackControls & 4) != 0 && ffxivReplay->fileStream != IntPtr.Zero && *(long*)ffxivReplay->fileStream == 0)
+        if (InPlayback && ffxivReplay->fileStream != IntPtr.Zero && *(long*)ffxivReplay->fileStream == 0)
             ReadReplay(ffxivReplay->currentReplaySlot); //ReadReplay(ARealmRecorded.Config.LastLoadedReplay);
     }
 
@@ -226,10 +257,11 @@ public unsafe class Game
         BeginPlaybackHook?.Dispose();
         GetReplayDataSegmentHook?.Dispose();
         OnSetChapterHook?.Dispose();
+        ExecuteCommandHook?.Dispose();
 
         if (!replayLoaded) return;
 
-        if ((ffxivReplay->playbackControls & 4) != 0)
+        if (InPlayback)
         {
             ffxivReplay->playbackControls |= 8; // Pause
             ARealmRecorded.PrintError("Plugin was unloaded, playback will be broken if the plugin or recording is not reloaded.");

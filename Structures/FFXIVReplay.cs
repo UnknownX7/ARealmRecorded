@@ -125,7 +125,7 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x6F4)] public float seek; // Determines current time, but always seems to be slightly ahead
     [FieldOffset(0x6F8)] public float u0x6F8; // Seems to be 1 or 0, depending on if the recording is currently playing, jumps to high values while seeking a chapter
     [FieldOffset(0x6FC)] public float speed;
-    [FieldOffset(0x700)] public float u0x700; // Seems to be 1 or 0, depending on if the speed is greater than 1
+    [FieldOffset(0x700)] public float u0x700; // Seems to be 1 or 0, depending on if the speed is greater than 1 (Probably sound timescale)
     [FieldOffset(0x704)] public byte selectedChapter; // 64 when playing, otherwise determines the current chapter being seeked to
     [FieldOffset(0x708)] public uint startingMS; // The ms considered 00:00:00
     [FieldOffset(0x70C)] public int u0x70C;

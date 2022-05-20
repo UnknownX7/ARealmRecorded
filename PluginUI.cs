@@ -1,3 +1,4 @@
+using Dalamud.Interface;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
 
@@ -17,6 +18,16 @@ public static class PluginUI
         ImGui.Begin("Expanded Replay Settings", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
         ImGui.SetWindowPos(new(addon->X, addon->Y - ImGui.GetWindowHeight()));
 
+        ImGui.PushFont(UiBuilder.IconFont);
+        if (ImGui.Button(FontAwesomeIcon.Users.ToIconString()))
+            Game.EnterGroupPose();
+        ImGui.SameLine();
+        if (ImGui.Button(FontAwesomeIcon.Video.ToIconString()))
+            Game.EnterIdleCamera();
+        ImGui.PopFont();
+        ImGui.SameLine();
+        ImGui.Checkbox("Quick Chapter Load", ref Game.quickLoadEnabled);
+
         ImGui.SetNextItemWidth(200);
         var speed = Game.ffxivReplay->speed;
         if (ImGui.SliderFloat("Speed", ref speed, 0.1f, 10, "%.1f", ImGuiSliderFlags.NoInput))
@@ -32,8 +43,6 @@ public static class PluginUI
             if (ImGui.Button($"{s}x"))
                 Game.ffxivReplay->speed = s == Game.ffxivReplay->speed ? 1 : s;
         }
-
-        ImGui.Checkbox("Quick Chapter Load", ref Game.quickLoadEnabled);
 
         ImGui.End();
     }
