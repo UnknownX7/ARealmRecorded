@@ -179,7 +179,7 @@ public unsafe class Game
     {
         if (DisplayRecordingOnDTRBarHook.Original(agent) != 0)
             return 1;
-        return (byte)((DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0) & ffxivReplay->status >> 2);
+        return (byte)(ffxivReplay->status & 4); //return (byte)((DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0) & ffxivReplay->status >> 2);
     }
 
     public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
