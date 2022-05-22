@@ -25,6 +25,8 @@ public unsafe class Game
     private static int quickLoadChapter = -1;
     private static int seekingChapter = 0;
 
+    private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 26, 28, 29 }; // 22 Event, 27 Carnivale, 29 Bozja
+
     private static List<(FileInfo, Structures.FFXIVReplay.Header)> replayList;
     public static List<(FileInfo, Structures.FFXIVReplay.Header)> ReplayList => replayList ?? GetReplayList();
 
@@ -54,11 +56,17 @@ public unsafe class Game
     private static Hook<InitializeRecordingDelegate> InitializeRecordingHook;
     private static void InitializeRecordingDetour(Structures.FFXIVReplay* ffxivReplay)
     {
+        var id = ffxivReplay->initZonePacket.contentFinderCondition;
+        if (id == 0) return;
+
+        var contentFinderCondition = DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ContentFinderCondition>()?.GetRow(id);
+        if (contentFinderCondition == null) return;
+
+        var contentType = contentFinderCondition.ContentType.Row;
+        if (!whitelistedContentTypes.Contains(contentType)) return;
+
         FixNextReplaySaveSlot();
         InitializeRecordingHook.Original(ffxivReplay);
-
-        if (ffxivReplay->initZonePacket.contentFinderCondition == 0) return;
-
         BeginRecording();
     }
 
@@ -94,7 +102,6 @@ public unsafe class Game
     private static Hook<BeginPlaybackDelegate> BeginPlaybackHook;
     private static void BeginPlaybackDetour(Structures.FFXIVReplay* ffxivReplay, byte allowed)
     {
-
         BeginPlaybackHook.Original(ffxivReplay, allowed);
         if (allowed == 0) return;
 
