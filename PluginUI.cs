@@ -14,6 +14,9 @@ public static class PluginUI
     private static int editingRecording = -1;
     private static bool focusNameInput = false;
 
+    private static bool loadingPlayback = false;
+    private static bool loadedPlayback = false;
+
     public static void Draw()
     {
         DrawExpandedDutyRecorderMenu();
@@ -113,7 +116,23 @@ public static class PluginUI
 
     public static unsafe void DrawExpandedPlaybackControls()
     {
-        if (DalamudApi.GameGui.GameUiHidden || Game.ffxivReplay->selectedChapter != 64 || (Game.ffxivReplay->status & 0x80) == 0) return;
+        if (DalamudApi.GameGui.GameUiHidden || Game.ffxivReplay->selectedChapter != 64) return;
+
+        if (!Game.InPlayback)
+        {
+            loadingPlayback = false;
+            loadedPlayback = false;
+            return;
+        }
+
+        if (!loadedPlayback)
+        {
+            if (Game.ffxivReplay->u0x6F0 != 0)
+                loadingPlayback = true;
+            else if (loadingPlayback && Game.ffxivReplay->u0x6F0 == 0)
+                loadedPlayback = true;
+            return;
+        }
 
         var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplayPlayer", 1);
         if (addon == null || !addon->IsVisible) return;
