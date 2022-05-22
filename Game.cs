@@ -353,10 +353,17 @@ public unsafe class Game
     public static void CopyRecordingIntoSlot(IntPtr agent, FileInfo file, Structures.FFXIVReplay.Header header, byte slot)
     {
         if (slot > 2) return;
-        file.CopyTo(Path.Combine(file.DirectoryName!, GetReplaySlotName(slot)), true);
-        ffxivReplay->savedReplayHeaders[slot] = header;
-        SetDutyRecorderMenuSelection(agent, slot);
-        GetReplayList();
+        try
+        {
+            file.CopyTo(Path.Combine(file.DirectoryName!, GetReplaySlotName(slot)), true);
+            ffxivReplay->savedReplayHeaders[slot] = header;
+            SetDutyRecorderMenuSelection(agent, slot);
+            GetReplayList();
+        }
+        catch (Exception e)
+        {
+            ARealmRecorded.PrintError($"Failed to copy recording to slot {slot + 1}\n{e}");
+        }
     }
 
     public static void OpenReplayFolder()
