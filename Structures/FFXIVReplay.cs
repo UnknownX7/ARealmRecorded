@@ -49,7 +49,7 @@ public unsafe struct FFXIVReplay
         public bool IsLocked => IsValid && IsPlayable && (info & 2) != 0;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 0xC * 64)]
+    [StructLayout(LayoutKind.Explicit, Size = 0x4 + 0xC * 64)]
     public struct ChapterArray
     {
         [FieldOffset(0x0)] public int length;
@@ -75,6 +75,20 @@ public unsafe struct FFXIVReplay
                 }
             }
         }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 0x60)]
+    public struct InitZonePacket
+    {
+        [FieldOffset(0x0)] public ushort u0x0;
+        [FieldOffset(0x2)] public ushort territoryType; // Used to determine if you can play a recording (possibly as well as if it can be recorded?)
+        [FieldOffset(0x4)] public ushort u0x4;
+        [FieldOffset(0x6)] public ushort contentFinderCondition; // Stops recording if 0
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 0xC0)]
+    public struct UnknownPacket
+    {
     }
 
     // .dat Info
@@ -124,8 +138,8 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x458)] public Utf8String characterRecordingName; // "<Character name> Duty Record #<Slot>" but only when recording, not when replaying
     [FieldOffset(0x4C0)] public Utf8String replayTitle; // contentTitle + the date and time, but only when recording, not when replaying
     [FieldOffset(0x528)] public Utf8String u0x528;
-    [FieldOffset(0x590)] public int u0x590;
-    [FieldOffset(0x598)] public long u0x598;
+    [FieldOffset(0x590)] public float recordingTime; // Only used when recording
+    [FieldOffset(0x598)] public long recordingLength; // Only used when recording
     [FieldOffset(0x5A0)] public int u0x5A0;
     [FieldOffset(0x5A4)] public byte u0x5A4;
     [FieldOffset(0x5A5)] public byte nextReplaySaveSlot;
@@ -134,12 +148,9 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x5B8)] public IntPtr u0x5B8; // Same as above?
     [FieldOffset(0x5C0)] public byte u0x5C0;
     [FieldOffset(0x5C4)] public uint localPlayerObjectID;
-    [FieldOffset(0x5C8)] public ushort u0x5C8; // Seems to be the start of something copied from somewhere else, with a size of 0x60 (96)
-    [FieldOffset(0x5CA)] public ushort currentTerritoryType; // TerritoryType of your actual ingame location, used to determine if you can play a recording (possibly as well as if it can be recorded?)
-    // 0x628, end of whatever this is
+    [FieldOffset(0x5C8)] public InitZonePacket initZonePacket; // The last received InitZone is saved here
     [FieldOffset(0x628)] public long u0x628;
-    [FieldOffset(0x630)] public long u0x630; // Seems to be the start of something copied from somewhere else, with a size of 0xC0 (192)
-    // 0x6F0, end of whatever this is
+    [FieldOffset(0x630)] public UnknownPacket u0x630; // Probably a packet
     [FieldOffset(0x6F0)] public int u0x6F0;
     [FieldOffset(0x6F4)] public float seek; // Determines current time, but always seems to be slightly ahead
     [FieldOffset(0x6F8)] public float u0x6F8; // Seems to be 1 or 0, depending on if the recording is currently playing, jumps to high values while seeking a chapter
@@ -149,8 +160,8 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x708)] public uint startingMS; // The ms considered 00:00:00
     [FieldOffset(0x70C)] public int u0x70C;
     [FieldOffset(0x710)] public short u0x710;
-    [FieldOffset(0x712)] public byte status; // Bitfield determining the current status of the system (1 Just logged in?, 2 Can record, 4 Saving Packets, 8 ???, 16 Record Ready Checked?, 32 Save Recording?, 64 Barrier down, 128 In playback after duty begins?)
+    [FieldOffset(0x712)] public byte status; // Bitfield determining the current status of the system (1 Just logged in?, 2 Can record, 4 Saving packets, 8 ???, 16 Record Ready Checked?, 32 Save recording?, 64 Barrier down, 128 In playback after barrier drops?)
     [FieldOffset(0x713)] public byte playbackControls; // Bitfield determining the current playback controls (1 Waiting to enter playback, 2 ???, 4 In playback (blocks packets), 8 Paused, 16 Chapter???, 32 Chapter???, 64 In duty?, 128 In playback???)
-    [FieldOffset(0x714)] public byte u0x714;
+    [FieldOffset(0x714)] public byte u0x714; // Bitfield? (1 Used to apply the initial chapter the moment the barrier drops while recording)
     // 0x715-0x718 is padding
 }
