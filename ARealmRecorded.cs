@@ -34,14 +34,6 @@ public class ARealmRecorded : IDalamudPlugin
 
     //public void ToggleConfig() => PluginUI.isVisible ^= true;
 
-    [Command("/addchapter")]
-    [HelpMessage("Adds a chapter to the current recording.")]
-    private void OnAddChapter(string command, string argument)
-    {
-        if (Game.AddRecordingChapter(3))
-            PrintEcho("Chapter added!");
-    }
-
     public static void PrintEcho(string message) => DalamudApi.ChatGui.Print($"[A Realm Recorded] {message}");
     public static void PrintError(string message) => DalamudApi.ChatGui.PrintError($"[A Realm Recorded] {message}");
 
