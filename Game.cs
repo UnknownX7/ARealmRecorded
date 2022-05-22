@@ -29,6 +29,7 @@ public unsafe class Game
     public static List<(FileInfo, Structures.FFXIVReplay.Header)> ReplayList => replayList ?? GetReplayList();
 
     private static readonly Memory.Replacer alwaysRecordReplacer = new("24 06 3C 02 75 08 48 8B CB E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
+    private static readonly Memory.Replacer removeRecordReadyToastReplacer = new("BA CB 07 00 00 48 8B CF E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
     private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
 
     [Signature("76 BA 48 8D 0D", ScanType = ScanType.StaticAddress)]
@@ -55,6 +56,9 @@ public unsafe class Game
     {
         FixNextReplaySaveSlot();
         InitializeRecordingHook.Original(ffxivReplay);
+
+        if (ffxivReplay->initZonePacket.contentFinderCondition == 0) return;
+
         BeginRecording();
     }
 
@@ -159,6 +163,16 @@ public unsafe class Game
     {
         if (a1 == 315 && InPlayback) return; // Block GPose and Idle Camera from sending packets
         ExecuteCommandHook.Original(a1, a2, a3, a4, a5);
+    }
+
+    private delegate byte DisplayRecordingOnDTRBarDelegate(IntPtr agent);
+    [Signature("E8 ?? ?? ?? ?? 44 0F B6 C0 BA 4F 00 00 00")]
+    private static Hook<DisplayRecordingOnDTRBarDelegate> DisplayRecordingOnDTRBarHook;
+    private static byte DisplayRecordingOnDTRBarDetour(IntPtr agent)
+    {
+        if (DisplayRecordingOnDTRBarHook.Original(agent) != 0)
+            return 1;
+        return (byte)((DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0) & ffxivReplay->status >> 2);
     }
 
     public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
@@ -405,6 +419,7 @@ public unsafe class Game
         GetReplayDataSegmentHook.Enable();
         OnSetChapterHook.Enable();
         ExecuteCommandHook.Enable();
+        DisplayRecordingOnDTRBarHook.Enable();
 
         if (InPlayback && ffxivReplay->fileStream != IntPtr.Zero && *(long*)ffxivReplay->fileStream == 0)
             ReadReplay(ARealmRecorded.Config.LastLoadedReplay);
@@ -419,6 +434,7 @@ public unsafe class Game
         GetReplayDataSegmentHook?.Dispose();
         OnSetChapterHook?.Dispose();
         ExecuteCommandHook?.Dispose();
+        DisplayRecordingOnDTRBarHook?.Dispose();
 
         if (!replayLoaded) return;
 
