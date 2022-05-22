@@ -312,14 +312,22 @@ public unsafe class Game
 
     public static List<(FileInfo, Structures.FFXIVReplay.Header)> GetReplayList()
     {
-        var directory = new DirectoryInfo(replayFolder);
-        var list = (from file in directory.GetFiles()
-            where file.Extension == ".dat"
-            let header = ReadReplayHeader(file.Name)
-            where header is { IsValid: true }
-            select (file, header.Value)
-            ).ToList();
-        replayList = list;
+        try
+        {
+            var directory = new DirectoryInfo(replayFolder);
+            var list = (from file in directory.GetFiles()
+                    where file.Extension == ".dat"
+                    let header = ReadReplayHeader(file.Name)
+                    where header is { IsValid: true }
+                    select (file, header.Value)
+                ).ToList();
+            replayList = list;
+        }
+        catch
+        {
+            replayList = new();
+        }
+
         return replayList;
     }
 
@@ -353,20 +361,27 @@ public unsafe class Game
 
     public static void OpenReplayFolder()
     {
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = replayFolder,
-            UseShellExecute = true
-        });
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = replayFolder,
+                UseShellExecute = true
+            });
+        }
+        catch { }
     }
 
     // 48 89 5C 24 08 57 48 83 EC 20 33 FF 48 8B D9 89 39 48 89 79 08 ctor
     // E8 ?? ?? ?? ?? 48 8D 8B 48 0B 00 00 E8 ?? ?? ?? ?? 48 8D 8B 38 0B 00 00 dtor
     // 40 53 48 83 EC 20 80 A1 12 07 00 00 F3 Initialize
+    // 40 53 48 83 EC 20 0F B6 81 13 07 00 00 48 8B D9 A8 04 Update
+    // 48 83 EC 38 0F B6 91 13 07 00 00 RequestEndPlayback
     // E8 ?? ?? ?? ?? EB 10 41 83 78 04 00 EndPlayback
     // 48 89 5C 24 10 55 48 8B EC 48 81 EC 80 00 00 00 48 8B 05 Something to do with loading
     // E8 ?? ?? ?? ?? 84 C0 74 8D SetChapter
-    // E8 ?? ?? ?? ?? 3C 40 73 4A GetCurrentChapter?
+    // E8 ?? ?? ?? ?? 3C 40 73 4A GetCurrentChapter
+    // 40 53 48 83 EC 20 0F B6 81 13 07 00 00 48 8B D9 24 06 ResetPlayback
     // F6 81 13 07 00 00 04 74 11 SetTimescale (No longer used by anything)
     // 40 53 48 83 EC 20 F3 0F 10 81 00 07 00 00 48 8B D9 SetSoundTimescale1? Doesn't seem to work (Last function)
     // E8 ?? ?? ?? ?? 44 0F B6 D8 C7 03 02 00 00 00 Function handling the UI buttons

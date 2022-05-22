@@ -38,7 +38,7 @@ public class ARealmRecorded : IDalamudPlugin
     [HelpMessage("Adds a chapter to the current recording.")]
     private void OnAddChapter(string command, string argument)
     {
-        if (Game.AddRecordingChapter(2))
+        if (Game.AddRecordingChapter(3))
             PrintEcho("Chapter added!");
     }
 

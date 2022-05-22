@@ -60,10 +60,10 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: artifact
-        path: plugins/${{ env.INTERNAL_NAME }}
+        path: testing/${{ env.INTERNAL_NAME }}
 
     - uses: EndBug/add-and-commit@v7
       with:
         add: --all
         branch: ${{ env.PLUGIN_REPO_BRANCH }}
-        message: ${{ env.EXTERNAL_NAME }} ${{ steps.get_version.outputs.VERSION }}
+        message: '[Testing] ${{ env.EXTERNAL_NAME }} ${{ steps.get_version.outputs.VERSION }}'
