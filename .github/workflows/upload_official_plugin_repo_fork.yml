@@ -1,4 +1,4 @@
-name: Upload to Plugin Repository
+name: Upload to Official Plugin Repository Fork
 
 on:
   push:
@@ -8,9 +8,10 @@ on:
 env:
   SOLUTION_NAME: ARealmRecorded
   INTERNAL_NAME: ARealmRecorded
+  EXTERNAL_NAME: A Realm Recorded
   RELEASE_DIR: ./Publish
-  PERSONAL_PLUGIN_REPO: UnknownX7/DalamudPluginRepo
-  BRANCH: master
+  PLUGIN_REPO_FORK: UnknownX7/DalamudPlugins
+  PLUGIN_REPO_BRANCH: api6
 
 jobs:
   build:
@@ -46,11 +47,15 @@ jobs:
     runs-on: [ubuntu-latest]
 
     steps:
+    - name: Get the version
+      id: get_version
+      run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+
     - uses: actions/checkout@v2
       with:
-        repository: ${{ env.PERSONAL_PLUGIN_REPO }}
+        repository: ${{ env.PLUGIN_REPO_FORK }}
+        ref: ${{ env.PLUGIN_REPO_BRANCH }}
         token: ${{ secrets.PAT }}
-        ref: ${{ env.BRANCH }}
 
     - uses: actions/download-artifact@v2
       with:
@@ -60,7 +65,5 @@ jobs:
     - uses: EndBug/add-and-commit@v7
       with:
         add: --all
-        author_name: GitHub Action
-        author_email: github-actions[bot]@users.noreply.github.com
-        branch: ${{ env.BRANCH }}
-        message: Update ${{ env.INTERNAL_NAME }}
+        branch: ${{ env.PLUGIN_REPO_BRANCH }}
+        message: ${{ env.EXTERNAL_NAME }} ${{ steps.get_version.outputs.VERSION }}
