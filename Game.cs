@@ -25,7 +25,7 @@ public unsafe class Game
     private static int quickLoadChapter = -1;
     private static int seekingChapter = 0;
 
-    private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 26, 28, 29 }; // 22 Event, 27 Carnivale, 29 Bozja
+    private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28 }; // 22 Event, 26 Eureka, 27 Carnivale, 29 Bozja
 
     private static List<(FileInfo, Structures.FFXIVReplay.Header)> replayList;
     public static List<(FileInfo, Structures.FFXIVReplay.Header)> ReplayList => replayList ?? GetReplayList();
@@ -38,6 +38,10 @@ public unsafe class Game
     public static Structures.FFXIVReplay* ffxivReplay;
 
     public static bool InPlayback => (ffxivReplay->playbackControls & 4) != 0;
+    public static bool IsRecording => (ffxivReplay->status & 0x74) == 0x74;
+
+    [Signature("?? ?? 00 00 01 75 74 85 FF 75 07 E8")]
+    public static short contentDirectorOffset;
 
     [Signature("40 53 48 83 EC 20 0F B6 81 12 07 00 00 48 8B D9 A8 04 74 5D")]
     private static delegate* unmanaged<Structures.FFXIVReplay*, byte, void> beginRecording;
@@ -68,6 +72,9 @@ public unsafe class Game
         FixNextReplaySaveSlot();
         InitializeRecordingHook.Original(ffxivReplay);
         BeginRecording();
+
+        if (contentDirectorOffset > 0)
+            ContentDirectorTimerUpdateHook?.Enable();
     }
 
     private delegate byte RequestPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte slot);
@@ -179,7 +186,21 @@ public unsafe class Game
     {
         if (DisplayRecordingOnDTRBarHook.Original(agent) != 0)
             return 1;
-        return (byte)(ffxivReplay->status & 4); //return (byte)((DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0) & ffxivReplay->status >> 2);
+        return (byte)(IsRecording ? 1 : 0); //return (byte)((DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0) & ffxivReplay->status >> 2);
+    }
+
+    private delegate void ContentDirectorTimerUpdateDelegate(IntPtr contentDirector);
+    [Signature("40 53 48 83 EC 20 0F B6 81 2D 07 00 00 48 8B D9 A8 04", DetourName = "ContentDirectorTimerUpdateDetour")]
+    private static Hook<ContentDirectorTimerUpdateDelegate> ContentDirectorTimerUpdateHook;
+    private static void ContentDirectorTimerUpdateDetour(IntPtr contentDirector)
+    {
+        if ((*(byte*)(contentDirector + contentDirectorOffset) & 12) == 12)
+        {
+            ffxivReplay->status |= 64;
+            ContentDirectorTimerUpdateHook.Disable();
+        }
+
+        ContentDirectorTimerUpdateHook.Original(contentDirector);
     }
 
     public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
@@ -442,6 +463,7 @@ public unsafe class Game
         OnSetChapterHook?.Dispose();
         ExecuteCommandHook?.Dispose();
         DisplayRecordingOnDTRBarHook?.Dispose();
+        ContentDirectorTimerUpdateHook?.Dispose();
 
         if (!replayLoaded) return;
 
