@@ -113,9 +113,9 @@ public unsafe class Game
         if (allowed == 0) return;
 
         if (string.IsNullOrEmpty(lastSelectedReplay))
-            ReadReplay(ffxivReplay->currentReplaySlot);
+            LoadReplay(ffxivReplay->currentReplaySlot);
         else
-            ReadReplay(lastSelectedReplay);
+            LoadReplay(lastSelectedReplay);
     }
 
     [Signature("E8 ?? ?? ?? ?? F6 83 12 07 00 00 04", DetourName = "PlaybackUpdateDetour")]
@@ -205,32 +205,51 @@ public unsafe class Game
 
     public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
 
-    public static void ReadReplay(int slot) => ReadReplay(GetReplaySlotName(slot));
+    public static void LoadReplay(int slot) => LoadReplay(GetReplaySlotName(slot));
 
-    public static void ReadReplay(string replayName)
+    public static void LoadReplay(string replayName)
     {
+        var newReplay = ReadReplay(replayName);
+        if (newReplay == IntPtr.Zero) return;
+
         if (replayLoaded)
             Marshal.FreeHGlobal(replayBytesPtr);
+
+        replayBytesPtr = newReplay;
+        replayLoaded = true;
+        LoadReplayInfo();
+        ffxivReplay->dataLoadType = 0;
+
+        ARealmRecorded.Config.LastLoadedReplay = replayName;
+    }
+
+    public static IntPtr ReadReplay(string replayName)
+    {
+        var ptr = IntPtr.Zero;
+        var allocated = false;
 
         try
         {
             var file = new FileInfo(Path.Combine(replayFolder, replayName));
             using var fs = File.OpenRead(file.FullName);
-            replayBytesPtr = Marshal.AllocHGlobal((int)fs.Length);
-            _ = fs.Read(new Span<byte>((void*)replayBytesPtr, (int)fs.Length));
-            replayLoaded = true;
-            ARealmRecorded.Config.LastLoadedReplay = replayName;
 
-            if (ffxivReplay->dataLoadType != 7) return;
+            ptr = Marshal.AllocHGlobal((int)fs.Length);
+            allocated = true;
 
-            LoadReplayInfo();
-            ffxivReplay->dataLoadType = 0;
+            _ = fs.Read(new Span<byte>((void*)ptr, (int)fs.Length));
         }
         catch (Exception e)
         {
             PluginLog.Error($"Failed to read replay {replayName}\n{e}");
-            replayLoaded = false;
+
+            if (allocated)
+            {
+                Marshal.FreeHGlobal(ptr);
+                ptr = IntPtr.Zero;
+            }
         }
+
+        return ptr;
     }
 
     public static Structures.FFXIVReplay.Header? ReadReplayHeader(string replayName)
@@ -450,7 +469,7 @@ public unsafe class Game
         DisplayRecordingOnDTRBarHook.Enable();
 
         if (InPlayback && ffxivReplay->fileStream != IntPtr.Zero && *(long*)ffxivReplay->fileStream == 0)
-            ReadReplay(ARealmRecorded.Config.LastLoadedReplay);
+            LoadReplay(ARealmRecorded.Config.LastLoadedReplay);
     }
 
     public static void Dispose()

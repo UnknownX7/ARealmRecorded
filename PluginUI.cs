@@ -158,7 +158,6 @@ public static class PluginUI
         if (ImGui.SliderFloat("Speed", ref speed, 0.1f, 10, "%.1f", ImGuiSliderFlags.NoInput))
             Game.ffxivReplay->speed = speed;
 
-        //var buttonSize = new Vector2(ImGui.CalcTextSize("aaaaa").X, 0);
         for (int i = 0; i < presetSpeeds.Length; i++)
         {
             if (i != 0)
