@@ -34,7 +34,7 @@ public unsafe class Game
     private static readonly Memory.Replacer removeRecordReadyToastReplacer = new("BA CB 07 00 00 48 8B CF E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
     private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
 
-    [Signature("76 BA 48 8D 0D", ScanType = ScanType.StaticAddress)]
+    [Signature("48 8D 0D ?? ?? ?? ?? 88 44 24 24", ScanType = ScanType.StaticAddress)]
     public static Structures.FFXIVReplay* ffxivReplay;
 
     public static bool InPlayback => (ffxivReplay->playbackControls & 4) != 0;
@@ -186,7 +186,7 @@ public unsafe class Game
     {
         if (DisplayRecordingOnDTRBarHook.Original(agent) != 0)
             return 1;
-        return (byte)(IsRecording ? 1 : 0); //return (byte)((DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0) & ffxivReplay->status >> 2);
+        return (byte)(IsRecording && DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0);
     }
 
     private delegate void ContentDirectorTimerUpdateDelegate(IntPtr contentDirector);
