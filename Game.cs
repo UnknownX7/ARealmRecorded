@@ -39,7 +39,7 @@ public unsafe class Game
 
     public static bool InPlayback => (ffxivReplay->playbackControls & 4) != 0;
 
-    [Signature("40 53 48 83 EC 20 0F B6 81 12 07 00 00 48 8B D9 A8 04 74 5D")]
+    [Signature("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 74 5D ")]
     private static delegate* unmanaged<Structures.FFXIVReplay*, byte, void> beginRecording;
     public static void BeginRecording() => beginRecording(ffxivReplay, 1);
 
@@ -71,7 +71,7 @@ public unsafe class Game
     }
 
     private delegate byte RequestPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte slot);
-    [Signature("48 89 5C 24 08 57 48 83 EC 30 F6 81 12 07 00 00 04")] // E8 ?? ?? ?? ?? EB 2B 48 8B CB 89 53 2C (+0x14)
+    [Signature("48 89 5C 24 08 57 48 83 EC 30 F6 81 1a 07 00 00 04")] // E8 ?? ?? ?? ?? EB 2B 48 8B CB 89 53 2C (+0x14)
     private static Hook<RequestPlaybackDelegate> RequestPlaybackHook;
     public static byte RequestPlaybackDetour(Structures.FFXIVReplay* ffxivReplay, byte slot)
     {
@@ -111,7 +111,7 @@ public unsafe class Game
             ReadReplay(lastSelectedReplay);
     }
 
-    [Signature("E8 ?? ?? ?? ?? F6 83 12 07 00 00 04", DetourName = "PlaybackUpdateDetour")]
+    [Signature("E8 ?? ?? ?? ?? F6 83 ?? ?? ?? ?? ?? 74 38", DetourName = "PlaybackUpdateDetour")]
     private static Hook<InitializeRecordingDelegate> PlaybackUpdateHook;
     private static void PlaybackUpdateDetour(Structures.FFXIVReplay* ffxivReplay)
     {
