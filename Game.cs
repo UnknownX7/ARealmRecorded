@@ -357,14 +357,14 @@ public unsafe class Game
     public static bool EnterGroupPose()
     {
         var uiModule = Framework.Instance()->GetUiModule();
-        return ((delegate* unmanaged<UIModule*, byte>)uiModule->vfunc[71])(uiModule) != 0;
+        return ((delegate* unmanaged<UIModule*, byte>)uiModule->vfunc[74])(uiModule) != 0; // 48 89 5C 24 08 57 48 83 EC 20 48 8B F9 48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 8B C8
     }
 
     public static bool EnterIdleCamera()
     {
         var uiModule = Framework.Instance()->GetUiModule();
         var focus = DalamudApi.TargetManager.FocusTarget;
-        return ((delegate* unmanaged<UIModule*, byte, long, byte>)uiModule->vfunc[74])(uiModule, 0, focus != null ? focus.ObjectId : 0xE0000000) != 0;
+        return ((delegate* unmanaged<UIModule*, byte, long, byte>)uiModule->vfunc[77])(uiModule, 0, focus != null ? focus.ObjectId : 0xE0000000) != 0; // 48 89 5C 24 08 57 48 83 EC 20 48 8B 01 49 8B D8 0F B6 FA
     }
 
     public static List<(FileInfo, Structures.FFXIVReplay.Header)> GetReplayList()
