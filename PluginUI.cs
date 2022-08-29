@@ -12,7 +12,7 @@ public static class PluginUI
     public static readonly float[] presetSpeeds = { 0.5f, 1, 2, 5, 10, 20, 60 };
 
     private static int editingRecording = -1;
-    private static bool focusNameInput = false;
+    private static string editingName = string.Empty;
 
     private static bool loadingPlayback = false;
     private static bool loadedPlayback = false;
@@ -58,7 +58,7 @@ public static class PluginUI
             var (file, header) = Game.ReplayList[i];
             var name = file.Name;
 
-            if (editingRecording < 0 || editingRecording != i)
+            if (editingRecording != i)
             {
                 var isPlayable = header.IsPlayable;
 
@@ -84,18 +84,14 @@ public static class PluginUI
                 if (!ImGui.IsItemHovered() || !ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) continue;
 
                 editingRecording = i;
-                focusNameInput = true;
+                editingName = name[..name.LastIndexOf('.')];
             }
             else
             {
-                var nameWithoutExtension = name[..name.LastIndexOf('.')];
-                ImGui.InputText("##SetName", ref nameWithoutExtension, 64, ImGuiInputTextFlags.AutoSelectAll);
+                ImGui.InputText("##SetName", ref editingName, 64, ImGuiInputTextFlags.AutoSelectAll);
 
-                if (focusNameInput)
-                {
-                    ImGui.SetKeyboardFocusHere();
-                    focusNameInput = false;
-                }
+                if (ImGui.IsWindowFocused() && !ImGui.IsAnyItemActive())
+                    ImGui.SetKeyboardFocusHere(-1);
 
                 if (!ImGui.IsItemDeactivated()) continue;
 
@@ -103,7 +99,7 @@ public static class PluginUI
 
                 try
                 {
-                    file.MoveTo(Path.Combine(file.DirectoryName!, $"{nameWithoutExtension}.dat"));
+                    file.MoveTo(Path.Combine(file.DirectoryName!, $"{editingName}.dat"));
                 }
                 catch (Exception e)
                 {
