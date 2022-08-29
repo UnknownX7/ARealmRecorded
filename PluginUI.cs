@@ -127,9 +127,9 @@ public static class PluginUI
 
         if (!loadedPlayback)
         {
-            if (Game.ffxivReplay->u0x6F0 != 0)
+            if (Game.ffxivReplay->u0x6F8 != 0)
                 loadingPlayback = true;
-            else if (loadingPlayback && Game.ffxivReplay->u0x6F0 == 0)
+            else if (loadingPlayback && Game.ffxivReplay->u0x6F8 == 0)
                 loadedPlayback = true;
             return;
         }

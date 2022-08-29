@@ -4,7 +4,7 @@ using FFXIVClientStructs.FFXIV.Client.System.String;
 
 namespace ARealmRecorded.Structures;
 
-[StructLayout(LayoutKind.Explicit, Size = 0x718)]
+[StructLayout(LayoutKind.Explicit, Size = 0x720)]
 public unsafe struct FFXIVReplay
 {
     [StructLayout(LayoutKind.Explicit, Size = 0x60)]
@@ -77,7 +77,7 @@ public unsafe struct FFXIVReplay
         }
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 0x60)]
+    [StructLayout(LayoutKind.Explicit, Size = 0x68)]
     public struct InitZonePacket
     {
         [FieldOffset(0x0)] public ushort u0x0;
@@ -149,19 +149,19 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x5C0)] public byte u0x5C0;
     [FieldOffset(0x5C4)] public uint localPlayerObjectID;
     [FieldOffset(0x5C8)] public InitZonePacket initZonePacket; // The last received InitZone is saved here
-    [FieldOffset(0x628)] public long u0x628;
-    [FieldOffset(0x630)] public UnknownPacket u0x630; // Probably a packet
-    [FieldOffset(0x6F0)] public int u0x6F0;
-    [FieldOffset(0x6F4)] public float seek; // Determines current time, but always seems to be slightly ahead
-    [FieldOffset(0x6F8)] public float u0x6F8; // Seems to be 1 or 0, depending on if the recording is currently playing, jumps to high values while seeking a chapter
-    [FieldOffset(0x6FC)] public float speed;
-    [FieldOffset(0x700)] public float u0x700; // Seems to be 1 or 0, depending on if the speed is greater than 1 (Probably sound timescale)
-    [FieldOffset(0x704)] public byte selectedChapter; // 64 when playing, otherwise determines the current chapter being seeked to
-    [FieldOffset(0x708)] public uint startingMS; // The ms considered 00:00:00
-    [FieldOffset(0x70C)] public int u0x70C;
-    [FieldOffset(0x710)] public short u0x710;
-    [FieldOffset(0x712)] public byte status; // Bitfield determining the current status of the system (1 Just logged in?, 2 Can record, 4 Saving packets, 8 ???, 16 Record Ready Checked?, 32 Save recording?, 64 Barrier down, 128 In playback after barrier drops?)
-    [FieldOffset(0x713)] public byte playbackControls; // Bitfield determining the current playback controls (1 Waiting to enter playback, 2 ???, 4 In playback (blocks packets), 8 Paused, 16 Chapter???, 32 Chapter???, 64 In duty?, 128 In playback???)
-    [FieldOffset(0x714)] public byte u0x714; // Bitfield? (1 Used to apply the initial chapter the moment the barrier drops while recording)
-    // 0x715-0x718 is padding
+    [FieldOffset(0x630)] public long u0x630;
+    [FieldOffset(0x638)] public UnknownPacket u0x638; // Probably a packet
+    [FieldOffset(0x6F8)] public int u0x6F8;
+    [FieldOffset(0x6FC)] public float seek; // Determines current time, but always seems to be slightly ahead
+    [FieldOffset(0x700)] public float u0x700; // Seems to be 1 or 0, depending on if the recording is currently playing, jumps to high values while seeking a chapter
+    [FieldOffset(0x704)] public float speed;
+    [FieldOffset(0x708)] public float u0x708; // Seems to be 1 or 0, depending on if the speed is greater than 1 (Probably sound timescale)
+    [FieldOffset(0x70C)] public byte selectedChapter; // 64 when playing, otherwise determines the current chapter being seeked to
+    [FieldOffset(0x710)] public uint startingMS; // The ms considered 00:00:00
+    [FieldOffset(0x714)] public int u0x714;
+    [FieldOffset(0x718)] public short u0x718;
+    [FieldOffset(0x71A)] public byte status; // Bitfield determining the current status of the system (1 Just logged in?, 2 Can record, 4 Saving packets, 8 ???, 16 Record Ready Checked?, 32 Save recording?, 64 Barrier down, 128 In playback after barrier drops?)
+    [FieldOffset(0x71B)] public byte playbackControls; // Bitfield determining the current playback controls (1 Waiting to enter playback, 2 ???, 4 In playback (blocks packets), 8 Paused, 16 Chapter???, 32 Chapter???, 64 In duty?, 128 In playback???)
+    [FieldOffset(0x71C)] public byte u0x71C; // Bitfield? (1 Used to apply the initial chapter the moment the barrier drops while recording)
+    // 0x71D-0x720 is padding
 }

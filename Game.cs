@@ -43,7 +43,7 @@ public unsafe class Game
     [Signature("?? ?? 00 00 01 75 74 85 FF 75 07 E8")]
     public static short contentDirectorOffset;
 
-    [Signature("40 53 48 83 EC 20 0F B6 81 12 07 00 00 48 8B D9 A8 04 74 5D")]
+    [Signature("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 74 5D")]
     private static delegate* unmanaged<Structures.FFXIVReplay*, byte, void> beginRecording;
     public static void BeginRecording() => beginRecording(ffxivReplay, 1);
 
@@ -78,7 +78,7 @@ public unsafe class Game
     }
 
     private delegate byte RequestPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte slot);
-    [Signature("48 89 5C 24 08 57 48 83 EC 30 F6 81 12 07 00 00 04")] // E8 ?? ?? ?? ?? EB 2B 48 8B CB 89 53 2C (+0x14)
+    [Signature("48 89 5C 24 08 57 48 83 EC 30 F6 81 ?? ?? ?? ?? 04")] // E8 ?? ?? ?? ?? EB 2B 48 8B CB 89 53 2C (+0x14)
     private static Hook<RequestPlaybackDelegate> RequestPlaybackHook;
     public static byte RequestPlaybackDetour(Structures.FFXIVReplay* ffxivReplay, byte slot)
     {
@@ -118,7 +118,7 @@ public unsafe class Game
             LoadReplay(lastSelectedReplay);
     }
 
-    [Signature("E8 ?? ?? ?? ?? F6 83 12 07 00 00 04", DetourName = "PlaybackUpdateDetour")]
+    [Signature("E8 ?? ?? ?? ?? F6 83 ?? ?? ?? ?? 04 74 38 F6 83 ?? ?? ?? ?? 01", DetourName = "PlaybackUpdateDetour")]
     private static Hook<InitializeRecordingDelegate> PlaybackUpdateHook;
     private static void PlaybackUpdateDetour(Structures.FFXIVReplay* ffxivReplay)
     {
@@ -190,7 +190,7 @@ public unsafe class Game
     }
 
     private delegate void ContentDirectorTimerUpdateDelegate(IntPtr contentDirector);
-    [Signature("40 53 48 83 EC 20 0F B6 81 2D 07 00 00 48 8B D9 A8 04", DetourName = "ContentDirectorTimerUpdateDetour")]
+    [Signature("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 0F 84 ?? ?? ?? ?? A8 08", DetourName = "ContentDirectorTimerUpdateDetour")]
     private static Hook<ContentDirectorTimerUpdateDelegate> ContentDirectorTimerUpdateHook;
     private static void ContentDirectorTimerUpdateDetour(IntPtr contentDirector)
     {
@@ -442,16 +442,16 @@ public unsafe class Game
 
     // 48 89 5C 24 08 57 48 83 EC 20 33 FF 48 8B D9 89 39 48 89 79 08 ctor
     // E8 ?? ?? ?? ?? 48 8D 8B 48 0B 00 00 E8 ?? ?? ?? ?? 48 8D 8B 38 0B 00 00 dtor
-    // 40 53 48 83 EC 20 80 A1 12 07 00 00 F3 Initialize
-    // 40 53 48 83 EC 20 0F B6 81 13 07 00 00 48 8B D9 A8 04 Update
-    // 48 83 EC 38 0F B6 91 13 07 00 00 RequestEndPlayback
+    // 40 53 48 83 EC 20 80 A1 ?? ?? ?? ?? F3 Initialize
+    // 40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 75 09 Update
+    // 48 83 EC 38 0F B6 91 ?? ?? ?? ?? 0F B6 C2 RequestEndPlayback
     // E8 ?? ?? ?? ?? EB 10 41 83 78 04 00 EndPlayback
     // 48 89 5C 24 10 55 48 8B EC 48 81 EC 80 00 00 00 48 8B 05 Something to do with loading
     // E8 ?? ?? ?? ?? 84 C0 74 8D SetChapter
     // E8 ?? ?? ?? ?? 3C 40 73 4A GetCurrentChapter
-    // 40 53 48 83 EC 20 0F B6 81 13 07 00 00 48 8B D9 24 06 ResetPlayback
-    // F6 81 13 07 00 00 04 74 11 SetTimescale (No longer used by anything)
-    // 40 53 48 83 EC 20 F3 0F 10 81 00 07 00 00 48 8B D9 SetSoundTimescale1? Doesn't seem to work (Last function)
+    // 40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 24 06 3C 04 75 5D 83 B9 ResetPlayback
+    // F6 81 ?? ?? ?? ?? 04 74 11 SetTimescale (No longer used by anything)
+    // 40 53 48 83 EC 20 F3 0F 10 81 ?? ?? ?? ?? 48 8B D9 F3 0F 10 0D SetSoundTimescale1? Doesn't seem to work (Last function)
     // E8 ?? ?? ?? ?? 44 0F B6 D8 C7 03 02 00 00 00 Function handling the UI buttons
 
     public static void Initialize()
