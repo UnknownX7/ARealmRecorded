@@ -51,6 +51,11 @@ public static class PluginUI
         if (ImGui.Button(FontAwesomeIcon.FolderOpen.ToIconString()))
             Game.OpenReplayFolder();
         ImGui.PopFont();
+        ImGui.SameLine();
+        if (ImGui.Checkbox("Enable Recording Icon", ref ARealmRecorded.Config.EnableRecordingIcon))
+            ARealmRecorded.Config.Save();
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Enables the game's recording icon next to the world / time information (Server info bar).");
 
         ImGui.BeginChild("Recordings List", ImGui.GetContentRegionAvail(), true);
         for (int i = 0; i < Game.ReplayList.Count; i++)

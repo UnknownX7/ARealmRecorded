@@ -182,12 +182,8 @@ public unsafe class Game
     private delegate byte DisplayRecordingOnDTRBarDelegate(IntPtr agent);
     [Signature("E8 ?? ?? ?? ?? 44 0F B6 C0 BA 4F 00 00 00")]
     private static Hook<DisplayRecordingOnDTRBarDelegate> DisplayRecordingOnDTRBarHook;
-    private static byte DisplayRecordingOnDTRBarDetour(IntPtr agent)
-    {
-        if (DisplayRecordingOnDTRBarHook.Original(agent) != 0)
-            return 1;
-        return (byte)(IsRecording && DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0);
-    }
+    private static byte DisplayRecordingOnDTRBarDetour(IntPtr agent) => (byte)(DisplayRecordingOnDTRBarHook.Original(agent) != 0
+        || ARealmRecorded.Config.EnableRecordingIcon && IsRecording && DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0);
 
     private delegate void ContentDirectorTimerUpdateDelegate(IntPtr contentDirector);
     [Signature("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 0F 84 ?? ?? ?? ?? A8 08", DetourName = "ContentDirectorTimerUpdateDetour")]
