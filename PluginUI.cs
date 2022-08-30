@@ -15,7 +15,7 @@ public static class PluginUI
     private static string editingName = string.Empty;
 
     private static bool loadingPlayback = false;
-    private static bool loadedPlayback = false;
+    private static bool loadedPlayback = true;
 
     public static void Draw()
     {
@@ -117,7 +117,8 @@ public static class PluginUI
 
     public static unsafe void DrawExpandedPlaybackControls()
     {
-        if (DalamudApi.GameGui.GameUiHidden || Game.ffxivReplay->selectedChapter != 64) return;
+        if (DalamudApi.GameGui.GameUiHidden) return;
+        //if (Game.ffxivReplay->selectedChapter != 64) return; // Apparently people don't like this :(
 
         if (!Game.InPlayback)
         {
