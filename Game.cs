@@ -397,7 +397,7 @@ public unsafe class Game
 
     public static void SetDutyRecorderMenuSelection(IntPtr agent, string fileName, Structures.FFXIVReplay.Header header)
     {
-        header.localCID = DalamudApi.ClientState.LocalContentId;
+        //header.localCID = DalamudApi.ClientState.LocalContentId; // TODO: Fix bug
         lastSelectedReplay = fileName;
         lastSelectedHeader = header;
         var prevHeader = ffxivReplay->savedReplayHeaders[0];
