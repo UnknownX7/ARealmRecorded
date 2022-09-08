@@ -50,6 +50,11 @@ public static class PluginUI
         ImGui.SameLine();
         if (ImGui.Button(FontAwesomeIcon.FolderOpen.ToIconString()))
             Game.OpenReplayFolder();
+#if DEBUG
+        ImGui.SameLine();
+        if (ImGui.Button(FontAwesomeIcon.ExclamationTriangle.ToIconString()))
+            Game.ReadPackets(Game.lastSelectedReplay);
+#endif
         ImGui.PopFont();
         ImGui.SameLine();
         if (ImGui.Checkbox("Enable Recording Icon", ref ARealmRecorded.Config.EnableRecordingIcon))

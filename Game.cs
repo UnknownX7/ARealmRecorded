@@ -436,6 +436,38 @@ public unsafe class Game
         catch { }
     }
 
+#if DEBUG
+    public static void ReadPackets(string replayName)
+    {
+        var ptr = ReadReplay(replayName);
+        if (ptr == IntPtr.Zero) return;
+
+        var header = (Structures.FFXIVReplay.Header*)ptr;
+        var opcodeCount = new Dictionary<uint, uint>();
+        var opcodeLengths = new Dictionary<uint, uint>();
+
+        var offset = 0;
+        var totalPackets = 0;
+        while (header->replayLength > offset)
+        {
+            var segment = (Structures.FFXIVReplay.ReplayDataSegment*)((long)ptr + replayHeaderSize + offset);
+
+            opcodeCount.TryGetValue(segment->opcode, out var count);
+            opcodeCount[segment->opcode] = ++count;
+
+            opcodeLengths[segment->opcode] = segment->dataLength;
+            offset += 0xC + segment->dataLength;
+            ++totalPackets;
+        }
+
+        PluginLog.Information("-------------------");
+        PluginLog.Information($"Opcodes inside: {replayName} (Total: [{opcodeCount.Count}] {totalPackets})");
+        foreach (var (opcode, count) in opcodeCount)
+            PluginLog.Information($"[{opcode:X}] {count} ({opcodeLengths[opcode]})");
+        PluginLog.Information("-------------------");
+    }
+#endif
+
     // 48 89 5C 24 08 57 48 83 EC 20 33 FF 48 8B D9 89 39 48 89 79 08 ctor
     // E8 ?? ?? ?? ?? 48 8D 8B 48 0B 00 00 E8 ?? ?? ?? ?? 48 8D 8B 38 0B 00 00 dtor
     // 40 53 48 83 EC 20 80 A1 ?? ?? ?? ?? F3 Initialize
