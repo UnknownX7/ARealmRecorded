@@ -175,7 +175,7 @@ public unsafe class Game
     private static Hook<ExecuteCommandDelegate> ExecuteCommandHook;
     private static void ExecuteCommandDetour(int a1, int a2, int a3, int a4, int a5)
     {
-        if (a1 == 315 && InPlayback) return; // Block GPose and Idle Camera from sending packets
+        if (a1 != 1981 && InPlayback) return; // Block GPose and Idle Camera from sending packets
         ExecuteCommandHook.Original(a1, a2, a3, a4, a5);
     }
 
