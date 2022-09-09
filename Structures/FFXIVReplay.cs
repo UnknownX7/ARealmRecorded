@@ -58,7 +58,7 @@ public unsafe struct FFXIVReplay
         public struct Chapter
         {
             public int type; // 1 = Countdown, 2 = Start/Restart, 3 = ???, 4 = Event Cutscene, 5 = Barrier down (displayed as Start/Restart)
-            public uint offset; // byte offset?
+            public uint offset; // byte offset
             public uint ms; // ms from the start of the instance
         }
 

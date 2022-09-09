@@ -142,7 +142,7 @@ public static class PluginUI
         }
 
         var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplayPlayer", 1);
-        if (addon == null || !addon->IsVisible) return;
+        if (addon == null) return;
 
         ImGuiHelpers.ForceNextWindowMainViewport();
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);

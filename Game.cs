@@ -25,6 +25,9 @@ public unsafe class Game
     private static int quickLoadChapter = -1;
     private static int seekingChapter = 0;
 
+    private static byte overwrittenChapterNumber = 0;
+    private static Structures.FFXIVReplay.ChapterArray.Chapter overwrittenChapter;
+
     private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28 }; // 22 Event, 26 Eureka, 27 Carnivale, 29 Bozja
 
     private static List<(FileInfo, Structures.FFXIVReplay.Header)> replayList;
@@ -78,7 +81,7 @@ public unsafe class Game
     }
 
     private delegate byte RequestPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte slot);
-    [Signature("48 89 5C 24 08 57 48 83 EC 30 F6 81 ?? ?? ?? ?? 04")] // E8 ?? ?? ?? ?? EB 2B 48 8B CB 89 53 2C (+0x14)
+    [Signature("48 89 5C 24 08 57 48 83 EC 30 F6 81 ?? ?? ?? ?? 04", DetourName = "RequestPlaybackDetour")] // E8 ?? ?? ?? ?? EB 2B 48 8B CB 89 53 2C (+0x14)
     private static Hook<RequestPlaybackDelegate> RequestPlaybackHook;
     public static byte RequestPlaybackDetour(Structures.FFXIVReplay* ffxivReplay, byte slot)
     {
@@ -154,6 +157,15 @@ public unsafe class Game
         if (ffxivReplay->overallDataOffset >= ffxivReplay->replayHeader.replayLength)
             return null;
         return (Structures.FFXIVReplay.ReplayDataSegment*)((long)replayBytesPtr + replayHeaderSize + ffxivReplay->overallDataOffset);
+    }
+
+    private delegate byte SetChapterDelegate(Structures.FFXIVReplay* ffxivReplay, byte chapter);
+    [Signature("E8 ?? ?? ?? ?? 84 C0 74 8D", DetourName = "SetChapterDetour")]
+    private static Hook<SetChapterDelegate> SetChapterHook;
+    private static byte SetChapterDetour(Structures.FFXIVReplay* ffxivReplay, byte chapter)
+    {
+        RestoreOverwrittenChapter();
+        return SetChapterHook.Original(ffxivReplay, chapter);
     }
 
     private delegate void OnSetChapterDelegate(Structures.FFXIVReplay* ffxivReplay, byte chapter);
@@ -316,11 +328,78 @@ public unsafe class Game
         return 0;
     }
 
+    public static byte FindPreviousChapterFromTime(uint ms)
+    {
+        for (byte i = (byte)(ffxivReplay->chapters.length - 1); i > 0; i--)
+            if (ffxivReplay->chapters[i]->ms <= ms) return i;
+        return 0;
+    }
+
+    public static Structures.FFXIVReplay.ReplayDataSegment* FindNextDataSegment(uint ms, out uint offset)
+    {
+        offset = 0;
+
+        while (ffxivReplay->replayHeader.replayLength > offset)
+        {
+            var segment = (Structures.FFXIVReplay.ReplayDataSegment*)((long)replayBytesPtr + replayHeaderSize + offset);
+            if (segment->ms >= ms) return segment;
+            offset += (uint)(0xC + segment->dataLength);
+        }
+
+        return null;
+    }
+
     public static void JumpToChapter(byte chapter)
     {
         var jumpChapter = ffxivReplay->chapters[chapter];
+        if (jumpChapter == null) return;
         ffxivReplay->overallDataOffset = jumpChapter->offset;
         ffxivReplay->seek = jumpChapter->ms / 1000f;
+    }
+
+    public static void JumpToTime(uint ms)
+    {
+        var segment = FindNextDataSegment(ms, out var offset);
+        if (segment == null) return;
+        ffxivReplay->overallDataOffset = offset;
+        ffxivReplay->seek = segment->ms / 1000f;
+    }
+
+    public static void SeekToTime(uint ms)
+    {
+        if (ffxivReplay->selectedChapter != 64) return;
+
+        var prevChapter = FindPreviousChapterFromTime(ms);
+        var nextChapter = (byte)(prevChapter + 1);
+        if (nextChapter >= ffxivReplay->chapters.length)
+        {
+            ARealmRecorded.PrintError("Unimplemented.");
+            return;
+        }
+
+        var segment = FindNextDataSegment(ms, out var offset);
+        if (segment == null) return;
+
+        RestoreOverwrittenChapter();
+
+        var chapter = ffxivReplay->chapters[nextChapter];
+        overwrittenChapter = *chapter;
+        chapter->offset = offset;
+        chapter->ms = segment->ms;
+        _ = SetChapterDetour(ffxivReplay, nextChapter);
+        overwrittenChapterNumber = nextChapter;
+
+        if (quickLoadChapter > 0)
+            quickLoadChapter = prevChapter;
+    }
+
+    public static void RestoreOverwrittenChapter()
+    {
+        if (overwrittenChapterNumber == 0) return;
+        var c = ffxivReplay->chapters[overwrittenChapterNumber];
+        c->offset = overwrittenChapter.offset;
+        c->ms = overwrittenChapter.ms;
+        overwrittenChapterNumber = 0;
     }
 
     public static void ReplaySection(byte from, byte to)
@@ -475,7 +554,6 @@ public unsafe class Game
     // 48 83 EC 38 0F B6 91 ?? ?? ?? ?? 0F B6 C2 RequestEndPlayback
     // E8 ?? ?? ?? ?? EB 10 41 83 78 04 00 EndPlayback
     // 48 89 5C 24 10 55 48 8B EC 48 81 EC 80 00 00 00 48 8B 05 Something to do with loading
-    // E8 ?? ?? ?? ?? 84 C0 74 8D SetChapter
     // E8 ?? ?? ?? ?? 3C 40 73 4A GetCurrentChapter
     // 40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 24 06 3C 04 75 5D 83 B9 ResetPlayback
     // F6 81 ?? ?? ?? ?? 04 74 11 SetTimescale (No longer used by anything)
@@ -492,6 +570,7 @@ public unsafe class Game
         RequestPlaybackHook.Enable();
         BeginPlaybackHook.Enable();
         GetReplayDataSegmentHook.Enable();
+        SetChapterHook.Enable();
         OnSetChapterHook.Enable();
         ExecuteCommandHook.Enable();
         DisplayRecordingOnDTRBarHook.Enable();
@@ -507,6 +586,7 @@ public unsafe class Game
         RequestPlaybackHook?.Dispose();
         BeginPlaybackHook?.Dispose();
         GetReplayDataSegmentHook?.Dispose();
+        SetChapterHook?.Dispose();
         OnSetChapterHook?.Dispose();
         ExecuteCommandHook?.Dispose();
         DisplayRecordingOnDTRBarHook?.Dispose();
