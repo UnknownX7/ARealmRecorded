@@ -186,14 +186,10 @@ public unsafe class Game
         DoQuickLoad();
     }
 
-    private delegate void ExecuteCommandDelegate(int a1, int a2, int a3, int a4, int a5);
+    private delegate byte ExecuteCommandDelegate(int a1, int a2, int a3, int a4, int a5);
     [Signature("E8 ?? ?? ?? ?? 8D 43 0A")]
     private static Hook<ExecuteCommandDelegate> ExecuteCommandHook;
-    private static void ExecuteCommandDetour(int a1, int a2, int a3, int a4, int a5)
-    {
-        if (a1 != 1981 && InPlayback) return; // Block GPose and Idle Camera from sending packets
-        ExecuteCommandHook.Original(a1, a2, a3, a4, a5);
-    }
+    private static byte ExecuteCommandDetour(int a1, int a2, int a3, int a4, int a5) => (byte)(!InPlayback || a1 == 1981 ? ExecuteCommandHook.Original(a1, a2, a3, a4, a5) : 0); // Block GPose and Idle Camera from sending packets
 
     private delegate byte DisplayRecordingOnDTRBarDelegate(IntPtr agent);
     [Signature("E8 ?? ?? ?? ?? 44 0F B6 C0 BA 4F 00 00 00")]
