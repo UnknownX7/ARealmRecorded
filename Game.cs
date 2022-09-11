@@ -24,9 +24,7 @@ public unsafe class Game
     public static bool quickLoadEnabled = true;
     private static int quickLoadChapter = -1;
     private static int seekingChapter = 0;
-
-    private static byte overwrittenChapterNumber = 0;
-    private static Structures.FFXIVReplay.ChapterArray.Chapter overwrittenChapter;
+    private static uint seekingOffset = 0;
 
     private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28 }; // 22 Event, 26 Eureka, 27 Carnivale, 29 Bozja
 
@@ -36,6 +34,7 @@ public unsafe class Game
     private static readonly Memory.Replacer alwaysRecordReplacer = new("24 06 3C 02 75 08 48 8B CB E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
     private static readonly Memory.Replacer removeRecordReadyToastReplacer = new("BA CB 07 00 00 48 8B CF E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
     private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
+    private static readonly Memory.Replacer forceFastForwardReplacer = new("0F 83 ?? ?? ?? ?? 0F B7 47 02 4C 8D 47 0C", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
 
     [Signature("48 8D 0D ?? ?? ?? ?? 88 44 24 24", ScanType = ScanType.StaticAddress)]
     public static Structures.FFXIVReplay* ffxivReplay;
@@ -50,9 +49,17 @@ public unsafe class Game
     private static delegate* unmanaged<Structures.FFXIVReplay*, byte, void> beginRecording;
     public static void BeginRecording() => beginRecording(ffxivReplay, 1);
 
-    [Signature("E9 ?? ?? ?? ?? 48 83 4B 70 04")]
-    private static delegate* unmanaged<Structures.FFXIVReplay*, byte, byte> addRecordingChapter;
-    public static bool AddRecordingChapter(byte type) => addRecordingChapter(ffxivReplay, type) != 0;
+    [Signature("E8 ?? ?? ?? ?? 84 C0 74 8D")]
+    private static delegate* unmanaged<Structures.FFXIVReplay*, byte, byte> setChapter;
+    private static byte SetChapter(byte chapter) => setChapter(ffxivReplay, chapter);
+
+    //[Signature("E9 ?? ?? ?? ?? 48 83 4B 70 04")]
+    //private static delegate* unmanaged<Structures.FFXIVReplay*, byte, byte> addRecordingChapter;
+    //public static bool AddRecordingChapter(byte type) => addRecordingChapter(ffxivReplay, type) != 0;
+
+    //[Signature("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 24 06 3C 04 75 5D 83 B9")]
+    //private static delegate* unmanaged<Structures.FFXIVReplay*, void> resetPlayback;
+    //public static void ResetPlayback() => resetPlayback(ffxivReplay);
 
     [Signature("48 89 5C 24 10 57 48 81 EC 70 04 00 00")]
     private static delegate* unmanaged<IntPtr, void> displaySelectedDutyRecording;
@@ -125,6 +132,12 @@ public unsafe class Game
     private static Hook<InitializeRecordingDelegate> PlaybackUpdateHook;
     private static void PlaybackUpdateDetour(Structures.FFXIVReplay* ffxivReplay)
     {
+        if (seekingOffset > 0 && seekingOffset <= ffxivReplay->overallDataOffset)
+        {
+            forceFastForwardReplacer.Disable();
+            seekingOffset = 0;
+        }
+
         PlaybackUpdateHook.Original(ffxivReplay);
 
         if ((ffxivReplay->playbackControls & 4) == 0)
@@ -157,15 +170,6 @@ public unsafe class Game
         if (ffxivReplay->overallDataOffset >= ffxivReplay->replayHeader.replayLength)
             return null;
         return (Structures.FFXIVReplay.ReplayDataSegment*)((long)replayBytesPtr + replayHeaderSize + ffxivReplay->overallDataOffset);
-    }
-
-    private delegate byte SetChapterDelegate(Structures.FFXIVReplay* ffxivReplay, byte chapter);
-    [Signature("E8 ?? ?? ?? ?? 84 C0 74 8D", DetourName = "SetChapterDetour")]
-    private static Hook<SetChapterDelegate> SetChapterHook;
-    private static byte SetChapterDetour(Structures.FFXIVReplay* ffxivReplay, byte chapter)
-    {
-        RestoreOverwrittenChapter();
-        return SetChapterHook.Original(ffxivReplay, chapter);
     }
 
     private delegate void OnSetChapterDelegate(Structures.FFXIVReplay* ffxivReplay, byte chapter);
@@ -365,41 +369,24 @@ public unsafe class Game
         ffxivReplay->seek = segment->ms / 1000f;
     }
 
+    public static void JumpToTimeBeforeChapter(byte chapter, uint ms)
+    {
+        var jumpChapter = ffxivReplay->chapters[chapter];
+        if (jumpChapter == null) return;
+        JumpToTime(jumpChapter->ms > ms ? jumpChapter->ms - ms : 0);
+    }
+
     public static void SeekToTime(uint ms)
     {
         if (ffxivReplay->selectedChapter != 64) return;
 
         var prevChapter = FindPreviousChapterFromTime(ms);
-        var nextChapter = (byte)(prevChapter + 1);
-        if (nextChapter >= ffxivReplay->chapters.length)
-        {
-            ARealmRecorded.PrintError("Unimplemented.");
-            return;
-        }
-
         var segment = FindNextDataSegment(ms, out var offset);
         if (segment == null) return;
 
-        RestoreOverwrittenChapter();
-
-        var chapter = ffxivReplay->chapters[nextChapter];
-        overwrittenChapter = *chapter;
-        chapter->offset = offset;
-        chapter->ms = segment->ms;
-        _ = SetChapterDetour(ffxivReplay, nextChapter);
-        overwrittenChapterNumber = nextChapter;
-
-        if (quickLoadChapter > 0)
-            quickLoadChapter = prevChapter;
-    }
-
-    public static void RestoreOverwrittenChapter()
-    {
-        if (overwrittenChapterNumber == 0) return;
-        var c = ffxivReplay->chapters[overwrittenChapterNumber];
-        c->offset = overwrittenChapter.offset;
-        c->ms = overwrittenChapter.ms;
-        overwrittenChapterNumber = 0;
+        seekingOffset = offset;
+        forceFastForwardReplacer.Enable();
+        SetChapter(prevChapter);
     }
 
     public static void ReplaySection(byte from, byte to)
@@ -555,7 +542,6 @@ public unsafe class Game
     // E8 ?? ?? ?? ?? EB 10 41 83 78 04 00 EndPlayback
     // 48 89 5C 24 10 55 48 8B EC 48 81 EC 80 00 00 00 48 8B 05 Something to do with loading
     // E8 ?? ?? ?? ?? 3C 40 73 4A GetCurrentChapter
-    // 40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 24 06 3C 04 75 5D 83 B9 ResetPlayback
     // F6 81 ?? ?? ?? ?? 04 74 11 SetTimescale (No longer used by anything)
     // 40 53 48 83 EC 20 F3 0F 10 81 ?? ?? ?? ?? 48 8B D9 F3 0F 10 0D SetSoundTimescale1? Doesn't seem to work (Last function)
     // E8 ?? ?? ?? ?? 44 0F B6 D8 C7 03 02 00 00 00 Function handling the UI buttons
@@ -570,7 +556,6 @@ public unsafe class Game
         RequestPlaybackHook.Enable();
         BeginPlaybackHook.Enable();
         GetReplayDataSegmentHook.Enable();
-        SetChapterHook.Enable();
         OnSetChapterHook.Enable();
         ExecuteCommandHook.Enable();
         DisplayRecordingOnDTRBarHook.Enable();
@@ -586,7 +571,6 @@ public unsafe class Game
         RequestPlaybackHook?.Dispose();
         BeginPlaybackHook?.Dispose();
         GetReplayDataSegmentHook?.Dispose();
-        SetChapterHook?.Dispose();
         OnSetChapterHook?.Dispose();
         ExecuteCommandHook?.Dispose();
         DisplayRecordingOnDTRBarHook?.Dispose();
