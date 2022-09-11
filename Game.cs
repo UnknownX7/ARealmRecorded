@@ -34,6 +34,7 @@ public unsafe class Game
     private static readonly Memory.Replacer alwaysRecordReplacer = new("24 06 3C 02 75 08 48 8B CB E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
     private static readonly Memory.Replacer removeRecordReadyToastReplacer = new("BA CB 07 00 00 48 8B CF E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
     private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
+    private static readonly Memory.Replacer removeProcessingLimitReplacer2 = new("77 57 48 8B 0D ?? ?? ?? ?? 33 C0", new byte[] { 0x90, 0x90 }, true);
     private static readonly Memory.Replacer forceFastForwardReplacer = new("0F 83 ?? ?? ?? ?? 0F B7 47 02 4C 8D 47 0C", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
 
     [Signature("48 8D 0D ?? ?? ?? ?? 88 44 24 24", ScanType = ScanType.StaticAddress)]
@@ -132,15 +133,9 @@ public unsafe class Game
     private static Hook<InitializeRecordingDelegate> PlaybackUpdateHook;
     private static void PlaybackUpdateDetour(Structures.FFXIVReplay* ffxivReplay)
     {
-        if (seekingOffset > 0 && seekingOffset <= ffxivReplay->overallDataOffset)
-        {
-            forceFastForwardReplacer.Disable();
-            seekingOffset = 0;
-        }
-
         PlaybackUpdateHook.Original(ffxivReplay);
 
-        if ((ffxivReplay->playbackControls & 4) == 0)
+        if (!InPlayback)
         {
             if (ffxivReplay->chapters[0]->type == 1) // For some reason the barrier dropping in dungeons is 5, but in trials it's 1
                 ffxivReplay->chapters[0]->type = 5;
@@ -165,6 +160,19 @@ public unsafe class Game
     private static Hook<GetReplayDataSegmentDelegate> GetReplayDataSegmentHook;
     public static Structures.FFXIVReplay.ReplayDataSegment* GetReplayDataSegmentDetour(Structures.FFXIVReplay* ffxivReplay)
     {
+        // Needs to be here to prevent infinite looping
+        if (seekingOffset > 0 && seekingOffset <= ffxivReplay->overallDataOffset)
+        {
+            forceFastForwardReplacer.Disable();
+            seekingOffset = 0;
+        }
+
+        // Absurdly hacky, but it works
+        if (!quickLoadEnabled || ffxivReplay->seekDelta >= 400)
+            removeProcessingLimitReplacer2.Disable();
+        else
+            removeProcessingLimitReplacer2.Enable();
+
         if (!replayLoaded)
             return GetReplayDataSegmentHook.Original(ffxivReplay);
         if (ffxivReplay->overallDataOffset >= ffxivReplay->replayHeader.replayLength)
@@ -308,9 +316,7 @@ public unsafe class Game
     public static byte FindNextChapterType(byte startChapter, byte type)
     {
         for (byte i = (byte)(startChapter + 1); i < ffxivReplay->chapters.length; i++)
-        {
             if (ffxivReplay->chapters[i]->type == type) return i;
-        }
         return 0;
     }
 
