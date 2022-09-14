@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Numerics;
 using Dalamud.Interface;
@@ -78,7 +78,7 @@ public static class PluginUI
                 if (!isPlayable)
                     ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
 
-                if (ImGui.Selectable($"{name}", path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
+                if (ImGui.Selectable(file.Directory?.Name == "autorenamed" ? $"◯ {name}" : name, path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
                     Game.SetDutyRecorderMenuSelection(agent, path, header);
 
                 if (!isPlayable)
@@ -113,7 +113,9 @@ public static class PluginUI
                 if (!ImGui.IsItemDeactivated()) continue;
 
                 editingRecording = -1;
-                Game.RenameRecording(file, editingName);
+
+                if (ImGui.IsItemDeactivatedAfterEdit())
+                    Game.RenameRecording(file, editingName);
             }
         }
         ImGui.EndChild();
