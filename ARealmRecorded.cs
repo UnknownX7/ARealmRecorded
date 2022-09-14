@@ -1,4 +1,6 @@
 ﻿using System;
+using Dalamud.Game.Gui.Toast;
+using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Logging;
 using Dalamud.Plugin;
 
@@ -25,6 +27,7 @@ public class ARealmRecorded : IDalamudPlugin
             //DalamudApi.Framework.Update += Update;
             DalamudApi.PluginInterface.UiBuilder.Draw += Draw;
             //DalamudApi.PluginInterface.UiBuilder.OpenConfigUi += ToggleConfig;
+            DalamudApi.ToastGui.Toast += OnToast;
         }
         catch (Exception e)
         {
@@ -41,6 +44,12 @@ public class ARealmRecorded : IDalamudPlugin
 
     private void Draw() => PluginUI.Draw();
 
+    private unsafe void OnToast(ref SeString message, ref ToastOptions options, ref bool isHandled)
+    {
+        if (isHandled || Game.ffxivReplay->selectedChapter == 64 && Game.ffxivReplay->speed < 5) return;
+        isHandled = true;
+    }
+
     protected virtual void Dispose(bool disposing)
     {
         if (!disposing) return;
@@ -50,6 +59,7 @@ public class ARealmRecorded : IDalamudPlugin
         //DalamudApi.Framework.Update -= Update;
         DalamudApi.PluginInterface.UiBuilder.Draw -= Draw;
         //DalamudApi.PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfig;
+        DalamudApi.ToastGui.Toast -= OnToast;
         DalamudApi.Dispose();
 
         Game.Dispose();
