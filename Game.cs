@@ -15,7 +15,9 @@ namespace ARealmRecorded;
 public unsafe class Game
 {
     private const int replayHeaderSize = 0x364;
-    private static readonly string replayFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "My Games", "FINAL FANTASY XIV - A Realm Reborn", "replay"); // Path.Combine(Framework.Instance()->UserPath, "replay");
+    private static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPath, "replay");
+    private static readonly string autoRenamedFolder = Path.Combine(replayFolder, "autorenamed");
+    private static readonly string deletedFolder = Path.Combine(replayFolder, "deleted");
     private static bool replayLoaded;
     private static IntPtr replayBytesPtr;
     public static string lastSelectedReplay;
@@ -25,6 +27,8 @@ public unsafe class Game
     private static int quickLoadChapter = -1;
     private static int seekingChapter = 0;
     private static uint seekingOffset = 0;
+
+    private static int currentRecordingSlot = -1;
 
     private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28 }; // 22 Event, 26 Eureka, 27 Carnivale, 29 Bozja
 
@@ -135,14 +139,12 @@ public unsafe class Game
     {
         PlaybackUpdateHook.Original(ffxivReplay);
 
-        if (!InPlayback)
-        {
-            if (ffxivReplay->chapters[0]->type == 1) // For some reason the barrier dropping in dungeons is 5, but in trials it's 1
-                ffxivReplay->chapters[0]->type = 5;
-            return;
-        }
+        UpdateAutoRename();
 
-        if (!replayLoaded) return;
+        if (IsRecording && ffxivReplay->chapters[0]->type == 1) // For some reason the barrier dropping in dungeons is 5, but in trials it's 1
+            ffxivReplay->chapters[0]->type = 5;
+
+        if (!replayLoaded || !InPlayback) return;
 
         ffxivReplay->dataLoadType = 0;
         ffxivReplay->dataOffset = 0;
@@ -226,11 +228,25 @@ public unsafe class Game
 
     public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
 
-    public static void LoadReplay(int slot) => LoadReplay(GetReplaySlotName(slot));
-
-    public static void LoadReplay(string replayName)
+    private static void UpdateAutoRename()
     {
-        var newReplay = ReadReplay(replayName);
+        switch (IsRecording)
+        {
+            case true when currentRecordingSlot < 0:
+                currentRecordingSlot = ffxivReplay->nextReplaySaveSlot;
+                break;
+            case false when currentRecordingSlot >= 0:
+                AutoRenameRecording();
+                currentRecordingSlot = -1;
+                break;
+        }
+    }
+
+    public static void LoadReplay(int slot) => LoadReplay(Path.Combine(replayFolder, GetReplaySlotName(slot)));
+
+    public static void LoadReplay(string path)
+    {
+        var newReplay = ReadReplay(path);
         if (newReplay == IntPtr.Zero) return;
 
         if (replayLoaded)
@@ -241,18 +257,17 @@ public unsafe class Game
         LoadReplayInfo();
         ffxivReplay->dataLoadType = 0;
 
-        ARealmRecorded.Config.LastLoadedReplay = replayName;
+        ARealmRecorded.Config.LastLoadedReplay = path;
     }
 
-    public static IntPtr ReadReplay(string replayName)
+    public static IntPtr ReadReplay(string path)
     {
         var ptr = IntPtr.Zero;
         var allocated = false;
 
         try
         {
-            var file = new FileInfo(Path.Combine(replayFolder, replayName));
-            using var fs = File.OpenRead(file.FullName);
+            using var fs = File.OpenRead(path);
 
             ptr = Marshal.AllocHGlobal((int)fs.Length);
             allocated = true;
@@ -261,7 +276,7 @@ public unsafe class Game
         }
         catch (Exception e)
         {
-            PluginLog.Error($"Failed to read replay {replayName}\n{e}");
+            PluginLog.Error($"Failed to read replay {path}\n{e}");
 
             if (allocated)
             {
@@ -273,23 +288,20 @@ public unsafe class Game
         return ptr;
     }
 
-    public static Structures.FFXIVReplay.Header? ReadReplayHeader(string replayName)
+    public static Structures.FFXIVReplay.Header? ReadReplayHeader(string path)
     {
         try
         {
-            var file = new FileInfo(Path.Combine(replayFolder, replayName));
-            using var fs = File.OpenRead(file.FullName);
+            using var fs = File.OpenRead(path);
             var bytes = new byte[replayHeaderSize];
             if (fs.Read(bytes, 0, replayHeaderSize) != replayHeaderSize)
                 return null;
             fixed (byte* ptr = &bytes[0])
-            {
                 return *(Structures.FFXIVReplay.Header*)ptr;
-            }
         }
         catch (Exception e)
         {
-            PluginLog.Error($"Failed to read replay header {replayName}\n{e}");
+            PluginLog.Error($"Failed to read replay header {path}\n{e}");
             return null;
         }
     }
@@ -303,8 +315,6 @@ public unsafe class Game
 
     public static void FixNextReplaySaveSlot()
     {
-        if (!ffxivReplay->savedReplayHeaders[ffxivReplay->nextReplaySaveSlot].IsLocked) return;
-
         for (byte i = 0; i < 3; i++)
         {
             if (i != 2)
@@ -445,12 +455,18 @@ public unsafe class Game
         try
         {
             var directory = new DirectoryInfo(replayFolder);
-            var list = (from file in directory.GetFiles()
+
+            var renamedDirectory = new DirectoryInfo(autoRenamedFolder);
+            if (!renamedDirectory.Exists)
+                renamedDirectory.Create();
+
+            var list = (from file in directory.GetFiles().Concat(renamedDirectory.GetFiles())
                     where file.Extension == ".dat"
-                    let header = ReadReplayHeader(file.Name)
+                    let header = ReadReplayHeader(file.FullName)
                     where header is { IsValid: true }
                     select (file, header.Value)
-                ).ToList();
+                ).OrderByDescending(t => t.Value.IsPlayable).ThenBy(t => t.file.Name).ToList();
+
             replayList = list;
         }
         catch
@@ -461,6 +477,64 @@ public unsafe class Game
         return replayList;
     }
 
+    public static void RenameRecording(FileInfo file, string name)
+    {
+        try
+        {
+            file.MoveTo(Path.Combine(replayFolder, $"{name}.dat"));
+        }
+        catch (Exception e)
+        {
+            ARealmRecorded.PrintError($"Failed to rename recording\n{e}");
+        }
+    }
+
+    public static void AutoRenameRecording()
+    {
+        try
+        {
+            var fileName = GetReplaySlotName(currentRecordingSlot);
+            var (file, _) = GetReplayList().First(t => t.Item1.Name == fileName);
+
+            var name = $"{ffxivReplay->contentTitle} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
+            file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
+
+            var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
+            if (renamedFiles.Count > 30)
+                renamedFiles.OrderBy(f => f.CreationTime).First().Delete();
+
+            GetReplayList();
+            ffxivReplay->savedReplayHeaders[currentRecordingSlot] = new Structures.FFXIVReplay.Header();
+        }
+        catch (Exception e)
+        {
+            ARealmRecorded.PrintError($"Failed to rename recording\n{e}");
+        }
+    }
+
+    public static void DeleteRecording(FileInfo file)
+    {
+        try
+        {
+            var deletedDirectory = new DirectoryInfo(deletedFolder);
+            if (!deletedDirectory.Exists)
+                deletedDirectory.Create();
+
+            file.MoveTo(Path.Combine(deletedFolder, file.Name));
+
+            var deletedFiles = deletedDirectory.GetFiles().Where(f => f.Extension == ".dat").ToList();
+            if (deletedFiles.Count > 10)
+                deletedFiles.OrderBy(f => f.CreationTime).First().Delete();
+
+            GetReplayList();
+            ARealmRecorded.PrintEcho("Successfully moved the recording to the deleted folder!");
+        }
+        catch (Exception e)
+        {
+            ARealmRecorded.PrintError($"Failed to delete recording\n{e}");
+        }
+    }
+
     public static void SetDutyRecorderMenuSelection(IntPtr agent, byte slot)
     {
         *(byte*)(agent + 0x2C) = slot;
@@ -468,10 +542,10 @@ public unsafe class Game
         DisplaySelectedDutyRecording(agent);
     }
 
-    public static void SetDutyRecorderMenuSelection(IntPtr agent, string fileName, Structures.FFXIVReplay.Header header)
+    public static void SetDutyRecorderMenuSelection(IntPtr agent, string path, Structures.FFXIVReplay.Header header)
     {
         //header.localCID = DalamudApi.ClientState.LocalContentId; // TODO: Fix bug
-        lastSelectedReplay = fileName;
+        lastSelectedReplay = path;
         lastSelectedHeader = header;
         var prevHeader = ffxivReplay->savedReplayHeaders[0];
         ffxivReplay->savedReplayHeaders[0] = header;
@@ -510,9 +584,9 @@ public unsafe class Game
     }
 
 #if DEBUG
-    public static void ReadPackets(string replayName)
+    public static void ReadPackets(string path)
     {
-        var ptr = ReadReplay(replayName);
+        var ptr = ReadReplay(path);
         if (ptr == IntPtr.Zero) return;
 
         var header = (Structures.FFXIVReplay.Header*)ptr;
@@ -534,7 +608,7 @@ public unsafe class Game
         }
 
         PluginLog.Information("-------------------");
-        PluginLog.Information($"Opcodes inside: {replayName} (Total: [{opcodeCount.Count}] {totalPackets})");
+        PluginLog.Information($"Opcodes inside: {path} (Total: [{opcodeCount.Count}] {totalPackets})");
         foreach (var (opcode, count) in opcodeCount)
             PluginLog.Information($"[{opcode:X}] {count} ({opcodeLengths[opcode]})");
         PluginLog.Information("-------------------");

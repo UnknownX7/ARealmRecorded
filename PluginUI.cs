@@ -41,7 +41,7 @@ public static class PluginUI
         var addonH = (addon->RootNode->GetHeight() - 11) * addon->Scale;
         ImGuiHelpers.ForceNextWindowMainViewport();
         ImGui.SetNextWindowPos(new(addon->X + addonW, addon->Y));
-        ImGui.SetNextWindowSize(new Vector2(300 * ImGuiHelpers.GlobalScale, addonH));
+        ImGui.SetNextWindowSize(new Vector2(400 * ImGuiHelpers.GlobalScale, addonH));
         ImGui.Begin("Expanded Duty Recorder", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
         ImGui.PushFont(UiBuilder.IconFont);
@@ -66,17 +66,18 @@ public static class PluginUI
         for (int i = 0; i < Game.ReplayList.Count; i++)
         {
             var (file, header) = Game.ReplayList[i];
-            var name = file.Name;
 
             if (editingRecording != i)
             {
+                var name = file.Name;
+                var path = file.FullName;
                 var isPlayable = header.IsPlayable;
 
                 if (!isPlayable)
                     ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
 
-                if (ImGui.Selectable($"{name}", name == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
-                    Game.SetDutyRecorderMenuSelection(agent, name, header);
+                if (ImGui.Selectable($"{name}", path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
+                    Game.SetDutyRecorderMenuSelection(agent, path, header);
 
                 if (!isPlayable)
                     ImGui.PopStyleColor();
@@ -88,6 +89,10 @@ public static class PluginUI
                         if (ImGui.Selectable($"Copy to slot #{j + 1}"))
                             Game.CopyRecordingIntoSlot(agent, file, header, j);
                     }
+
+                    if (ImGui.Selectable("Delete"))
+                        Game.DeleteRecording(file);
+
                     ImGui.EndPopup();
                 }
 
@@ -106,15 +111,7 @@ public static class PluginUI
                 if (!ImGui.IsItemDeactivated()) continue;
 
                 editingRecording = -1;
-
-                try
-                {
-                    file.MoveTo(Path.Combine(file.DirectoryName!, $"{editingName}.dat"));
-                }
-                catch (Exception e)
-                {
-                    ARealmRecorded.PrintError($"Failed to rename recording\n{e}");
-                }
+                Game.RenameRecording(file, editingName);
             }
         }
         ImGui.EndChild();
