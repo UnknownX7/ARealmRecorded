@@ -17,6 +17,8 @@ public static class PluginUI
     private static bool loadingPlayback = false;
     private static bool loadedPlayback = true;
 
+    private static uint savedMS = 0;
+
     public static void Draw()
     {
         DrawExpandedDutyRecorderMenu();
@@ -132,9 +134,14 @@ public static class PluginUI
         if (!loadedPlayback)
         {
             if (Game.ffxivReplay->u0x6F8 != 0)
+            {
                 loadingPlayback = true;
+            }
             else if (loadingPlayback && Game.ffxivReplay->u0x6F8 == 0)
+            {
                 loadedPlayback = true;
+                savedMS = 0;
+            }
             return;
         }
 
@@ -170,6 +177,16 @@ public static class PluginUI
             var s = presetSpeeds[i];
             if (ImGui.Button($"{s}x"))
                 Game.ffxivReplay->speed = s == Game.ffxivReplay->speed ? 1 : s;
+        }
+
+        if (ImGui.Button("Save Time"))
+            savedMS = (uint)(Game.ffxivReplay->seek * 1000 - 3500);
+
+        if (savedMS > 0)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Jump to Time"))
+                Game.SeekToTime(savedMS);
         }
 
         ImGui.End();
