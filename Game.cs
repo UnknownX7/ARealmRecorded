@@ -44,8 +44,13 @@ public unsafe class Game
     [Signature("48 8D 0D ?? ?? ?? ?? 88 44 24 24", ScanType = ScanType.StaticAddress)]
     public static Structures.FFXIVReplay* ffxivReplay;
 
+    [Signature("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 0E", ScanType = ScanType.StaticAddress)]
+    private static byte* waymarkToggle; // Actually a uint, but only seems to use the first 2 bits
+
     public static bool InPlayback => (ffxivReplay->playbackControls & 4) != 0;
     public static bool IsRecording => (ffxivReplay->status & 0x74) == 0x74;
+
+    public static bool IsWaymarkVisible => (*waymarkToggle & 2) == 0;
 
     [Signature("?? ?? 00 00 01 75 74 85 FF 75 07 E8")]
     public static short contentDirectorOffset;
@@ -583,6 +588,14 @@ public unsafe class Game
         catch { }
     }
 
+    public static void ToggleWaymarks()
+    {
+        if ((*waymarkToggle & 2) != 0)
+            *waymarkToggle -= 2;
+        else
+            *waymarkToggle += 2;
+    }
+
 #if DEBUG
     public static void ReadPackets(string path)
     {
@@ -641,6 +654,8 @@ public unsafe class Game
         ExecuteCommandHook.Enable();
         DisplayRecordingOnDTRBarHook.Enable();
         EventBeginHook.Enable();
+
+        waymarkToggle += 0x48;
 
         if (InPlayback && ffxivReplay->fileStream != IntPtr.Zero && *(long*)ffxivReplay->fileStream == 0)
             LoadReplay(ARealmRecorded.Config.LastLoadedReplay);

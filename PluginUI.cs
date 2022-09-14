@@ -161,6 +161,14 @@ public static class PluginUI
         ImGui.PopFont();
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Enters idle camera on the current focus target.");
+        ImGui.PushFont(UiBuilder.IconFont);
+        ImGui.SameLine();
+        var v = Game.IsWaymarkVisible;
+        if (ImGui.Button(v ? FontAwesomeIcon.ToggleOn.ToIconString() : FontAwesomeIcon.ToggleOff.ToIconString()))
+            Game.ToggleWaymarks();
+        ImGui.PopFont();
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip(v ? "Hide waymarks." : "Show waymarks.");
         ImGui.SameLine();
         ImGui.Checkbox("Quick Chapter Load", ref Game.quickLoadEnabled);
 
