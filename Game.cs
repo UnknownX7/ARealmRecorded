@@ -584,6 +584,8 @@ public unsafe class Game
 
     public static void SetSavedRecordingCIDs(ulong cID)
     {
+        if (ffxivReplay->savedReplayHeaders == null) return;
+
         for (int i = 0; i < 3; i++)
         {
             var header = ffxivReplay->savedReplayHeaders[i];
