@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
 using Dalamud.Logging;
 using Dalamud.Utility.Signatures;
@@ -209,10 +210,16 @@ public unsafe class Game
         DoQuickLoad();
     }
 
-    private delegate byte ExecuteCommandDelegate(int a1, int a2, int a3, int a4, int a5);
+    private delegate byte ExecuteCommandDelegate(uint clientTrigger, int param1, int param2, int param3, int param4);
     [Signature("E8 ?? ?? ?? ?? 8D 43 0A")]
     private static Hook<ExecuteCommandDelegate> ExecuteCommandHook;
-    private static byte ExecuteCommandDetour(int a1, int a2, int a3, int a4, int a5) => (byte)(!InPlayback || a1 == 1981 ? ExecuteCommandHook.Original(a1, a2, a3, a4, a5) : 0); // Block GPose and Idle Camera from sending packets
+    private static byte ExecuteCommandDetour(uint clientTrigger, int param1, int param2, int param3, int param4)
+    {
+        if (!InPlayback || clientTrigger is 201 or 1981) return ExecuteCommandHook.Original(clientTrigger, param1, param2, param3, param4); // Block GPose and Idle Camera from sending packets
+        if (clientTrigger == 315) // Mimic GPose and Idle Camera ConditionFlag for plugin compatibility
+            SetConditionFlag(ConditionFlag.WatchingCutscene, param1 != 0);
+        return 0;
+    }
 
     private delegate byte DisplayRecordingOnDTRBarDelegate(IntPtr agent);
     [Signature("E8 ?? ?? ?? ?? 44 0F B6 C0 BA 4F 00 00 00")]
@@ -626,6 +633,8 @@ public unsafe class Game
         else
             *waymarkToggle += 2;
     }
+
+    public static void SetConditionFlag(ConditionFlag flag, bool b) => *(bool*)(DalamudApi.Condition.Address + (int)flag) = b;
 
 #if DEBUG
     public static void ReadPackets(string path)

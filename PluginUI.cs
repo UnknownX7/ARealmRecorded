@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Numerics;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
@@ -125,7 +126,7 @@ public static class PluginUI
 
     public static unsafe void DrawExpandedPlaybackControls()
     {
-        if (DalamudApi.GameGui.GameUiHidden) return;
+        if (DalamudApi.GameGui.GameUiHidden || DalamudApi.Condition[ConditionFlag.WatchingCutscene]) return;
         //if (Game.ffxivReplay->selectedChapter != 64) return; // Apparently people don't like this :(
 
         if (!Game.InPlayback)
