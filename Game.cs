@@ -24,7 +24,6 @@ public unsafe class Game
     public static string lastSelectedReplay;
     private static Structures.FFXIVReplay.Header lastSelectedHeader;
 
-    public static bool quickLoadEnabled = true;
     private static int quickLoadChapter = -1;
     private static int seekingChapter = 0;
     private static uint seekingOffset = 0;
@@ -51,6 +50,7 @@ public unsafe class Game
 
     public static bool InPlayback => (ffxivReplay->playbackControls & 4) != 0;
     public static bool IsRecording => (ffxivReplay->status & 0x74) == 0x74;
+    public static bool IsLoadingChapter => ffxivReplay->selectedChapter != 64;
 
     public static bool IsWaymarkVisible => (*waymarkToggle & 2) == 0;
 
@@ -177,7 +177,7 @@ public unsafe class Game
         }
 
         // Absurdly hacky, but it works
-        if (!quickLoadEnabled || ffxivReplay->seekDelta >= 400)
+        if (!ARealmRecorded.Config.EnableQuickLoad || ARealmRecorded.Config.MaxSeekDelta <= 100 || ffxivReplay->seekDelta >= ARealmRecorded.Config.MaxSeekDelta)
             removeProcessingLimitReplacer2.Disable();
         else
             removeProcessingLimitReplacer2.Enable();
@@ -196,7 +196,7 @@ public unsafe class Game
     {
         OnSetChapterHook.Original(ffxivReplay, chapter);
 
-        if (!quickLoadEnabled || chapter <= 0 || ffxivReplay->chapters.length < 2) return;
+        if (!ARealmRecorded.Config.EnableQuickLoad || chapter <= 0 || ffxivReplay->chapters.length < 2) return;
 
         quickLoadChapter = chapter;
         seekingChapter = -1;
@@ -402,7 +402,7 @@ public unsafe class Game
 
     public static void SeekToTime(uint ms)
     {
-        if (ffxivReplay->selectedChapter != 64) return;
+        if (IsLoadingChapter) return;
 
         var prevChapter = FindPreviousChapterFromTime(ms);
         var segment = FindNextDataSegment(ms, out var offset);
@@ -551,7 +551,7 @@ public unsafe class Game
 
     public static void SetDutyRecorderMenuSelection(IntPtr agent, string path, Structures.FFXIVReplay.Header header)
     {
-        //header.localCID = DalamudApi.ClientState.LocalContentId; // TODO: Fix bug
+        header.localCID = DalamudApi.ClientState.LocalContentId;
         lastSelectedReplay = path;
         lastSelectedHeader = header;
         var prevHeader = ffxivReplay->savedReplayHeaders[0];

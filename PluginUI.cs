@@ -17,6 +17,8 @@ public static class PluginUI
     private static bool loadingPlayback = false;
     private static bool loadedPlayback = true;
 
+    private static bool showSettings = false;
+
     private static uint savedMS = 0;
 
     public static void Draw()
@@ -154,6 +156,9 @@ public static class PluginUI
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
         ImGui.SetWindowPos(new(addon->X, addon->Y - ImGui.GetWindowHeight()));
 
+        if (showSettings && !Game.IsLoadingChapter)
+            DrawSettings();
+
         ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.Users.ToIconString()))
             Game.EnterGroupPose();
@@ -172,7 +177,11 @@ public static class PluginUI
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip(v ? "Hide waymarks." : "Show waymarks.");
         ImGui.SameLine();
-        ImGui.Checkbox("Quick Chapter Load", ref Game.quickLoadEnabled);
+        ImGui.PushFont(UiBuilder.IconFont);
+        ImGui.SameLine();
+        if (ImGui.Button(FontAwesomeIcon.Wrench.ToIconString()))
+            showSettings ^= true;
+        ImGui.PopFont();
 
         ImGui.SetNextItemWidth(200);
         var speed = Game.ffxivReplay->speed;
@@ -200,5 +209,25 @@ public static class PluginUI
         }
 
         ImGui.End();
+    }
+
+    private static void DrawSettings()
+    {
+        var save = false;
+
+        save |= ImGui.Checkbox("Quick Chapter Load", ref ARealmRecorded.Config.EnableQuickLoad);
+
+        if (ARealmRecorded.Config.EnableQuickLoad)
+        {
+            ImGui.SetNextItemWidth(200);
+            save |= ImGui.SliderFloat("Loading Speed", ref ARealmRecorded.Config.MaxSeekDelta, 100, 800, "%.f%%");
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Can cause issues with some fights that contain arena changes.");
+        }
+
+        ImGui.Separator();
+
+        if (save)
+            ARealmRecorded.Config.Save();
     }
 }

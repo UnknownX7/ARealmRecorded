@@ -46,7 +46,7 @@ public class ARealmRecorded : IDalamudPlugin
 
     private unsafe void OnToast(ref SeString message, ref ToastOptions options, ref bool isHandled)
     {
-        if (isHandled || Game.ffxivReplay->selectedChapter == 64 && Game.ffxivReplay->speed < 5) return;
+        if (isHandled || !Game.IsLoadingChapter && Game.ffxivReplay->speed < 5) return;
         isHandled = true;
     }
 
