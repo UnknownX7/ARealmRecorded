@@ -138,6 +138,8 @@ public unsafe class Game
         BeginPlaybackHook.Original(ffxivReplay, allowed);
         if (allowed == 0) return;
 
+        UnloadReplay();
+
         if (string.IsNullOrEmpty(lastSelectedReplay))
             LoadReplay(ffxivReplay->currentReplaySlot);
         else
@@ -254,12 +256,12 @@ public unsafe class Game
         }
     }
 
-    public static void LoadReplay(int slot) => LoadReplay(Path.Combine(replayFolder, GetReplaySlotName(slot)));
+    public static bool LoadReplay(int slot) => LoadReplay(Path.Combine(replayFolder, GetReplaySlotName(slot)));
 
-    public static void LoadReplay(string path)
+    public static bool LoadReplay(string path)
     {
         var newReplay = ReadReplay(path);
-        if (newReplay == IntPtr.Zero) return;
+        if (newReplay == IntPtr.Zero) return false;
 
         if (replayLoaded)
             Marshal.FreeHGlobal(replayBytesPtr);
@@ -270,6 +272,15 @@ public unsafe class Game
         ffxivReplay->dataLoadType = 0;
 
         ARealmRecorded.Config.LastLoadedReplay = path;
+        return true;
+    }
+
+    public static bool UnloadReplay()
+    {
+        if (!replayLoaded) return false;
+        Marshal.FreeHGlobal(replayBytesPtr);
+        replayLoaded = false;
+        return true;
     }
 
     public static IntPtr ReadReplay(string path)
