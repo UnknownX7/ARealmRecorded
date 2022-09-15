@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using Dalamud.Hooking;
 using Dalamud.Logging;
 using Dalamud.Utility.Signatures;
@@ -29,6 +30,7 @@ public unsafe class Game
     private static uint seekingOffset = 0;
 
     private static int currentRecordingSlot = -1;
+    private static readonly Regex bannedFolderCharacters = new("[\\\\\\/:\\*\\?\"\\<\\>\\|]");
 
     private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28 }; // 22 Event, 26 Eureka, 27 Carnivale, 29 Bozja
 
@@ -501,7 +503,7 @@ public unsafe class Game
             var fileName = GetReplaySlotName(currentRecordingSlot);
             var (file, _) = GetReplayList().First(t => t.Item1.Name == fileName);
 
-            var name = $"{ffxivReplay->contentTitle} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
+            var name = $"{bannedFolderCharacters.Replace(ffxivReplay->contentTitle.ToString(), "")} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
             file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
 
             var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
