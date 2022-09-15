@@ -153,8 +153,8 @@ public static class PluginUI
         if (addon == null) return;
 
         ImGuiHelpers.ForceNextWindowMainViewport();
+        ImGui.SetNextWindowPos(new(addon->X, addon->Y), ImGuiCond.Always, Vector2.UnitY);
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
-        ImGui.SetWindowPos(new(addon->X, addon->Y - ImGui.GetWindowHeight()));
 
         if (showSettings && !Game.IsLoadingChapter)
             DrawSettings();
