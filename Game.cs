@@ -158,7 +158,11 @@ public unsafe class Game
         if (IsRecording && ffxivReplay->chapters[0]->type == 1) // For some reason the barrier dropping in dungeons is 5, but in trials it's 1
             ffxivReplay->chapters[0]->type = 5;
 
-        if (!replayLoaded || !InPlayback) return;
+        if (!InPlayback) return;
+
+        SetConditionFlag(ConditionFlag.OccupiedInCutSceneEvent, false);
+
+        if (!replayLoaded) return;
 
         ffxivReplay->dataLoadType = 0;
         ffxivReplay->dataOffset = 0;
