@@ -91,8 +91,6 @@ public unsafe struct FFXIVReplay
     {
     }
 
-    // .dat Info
-    // 0x364 is the start of the replay data, everything before this is the Header + ChapterArray
     [StructLayout(LayoutKind.Sequential)]
     public struct ReplayDataSegment
     {
@@ -101,16 +99,36 @@ public unsafe struct FFXIVReplay
         public uint ms;
         public uint objectID;
 
+        public uint Length => (uint)sizeof(ReplayDataSegment) + dataLength;
+
         public byte* Data
         {
             get
             {
                 fixed (void* ptr = &this)
-                {
-                    return (byte*)ptr + 0xC;
-                }
+                    return (byte*)ptr + sizeof(ReplayDataSegment);
             }
         }
+    }
+
+    // .dat Info
+    // 0x364 is the start of the replay data, everything before this is the Header + ChapterArray
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ReplayFile
+    {
+        public Header header;
+        public ChapterArray chapters;
+
+        public byte* Data
+        {
+            get
+            {
+                fixed (void* ptr = &this)
+                    return (byte*)ptr + sizeof(Header) + sizeof(ChapterArray);
+            }
+        }
+
+        public ReplayDataSegment* GetDataSegment(uint offset) => offset < header.replayLength ? (ReplayDataSegment*)((long)Data + offset) : null;
     }
 
     [FieldOffset(0x0)] public int replayVersion; // No idea if this is the version of the game or the version of the replay system

@@ -16,12 +16,10 @@ namespace ARealmRecorded;
 
 public unsafe class Game
 {
-    private const int replayHeaderSize = 0x364;
     private static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPath, "replay");
     private static readonly string autoRenamedFolder = Path.Combine(replayFolder, "autorenamed");
     private static readonly string deletedFolder = Path.Combine(replayFolder, "deleted");
-    private static bool replayLoaded;
-    private static IntPtr replayBytesPtr;
+    private static Structures.FFXIVReplay.ReplayFile* loadedReplay = null;
     public static string lastSelectedReplay;
     private static Structures.FFXIVReplay.Header lastSelectedHeader;
 
@@ -162,7 +160,7 @@ public unsafe class Game
 
         SetConditionFlag(ConditionFlag.OccupiedInCutSceneEvent, false);
 
-        if (!replayLoaded) return;
+        if (loadedReplay == null) return;
 
         ffxivReplay->dataLoadType = 0;
         ffxivReplay->dataOffset = 0;
@@ -193,11 +191,7 @@ public unsafe class Game
         else
             removeProcessingLimitReplacer2.Enable();
 
-        if (!replayLoaded)
-            return GetReplayDataSegmentHook.Original(ffxivReplay);
-        if (ffxivReplay->overallDataOffset >= ffxivReplay->replayHeader.replayLength)
-            return null;
-        return (Structures.FFXIVReplay.ReplayDataSegment*)((long)replayBytesPtr + replayHeaderSize + ffxivReplay->overallDataOffset);
+        return loadedReplay == null ? GetReplayDataSegmentHook.Original(ffxivReplay) : loadedReplay->GetDataSegment((uint)ffxivReplay->overallDataOffset);
     }
 
     private delegate void OnSetChapterDelegate(Structures.FFXIVReplay* ffxivReplay, byte chapter);
@@ -272,14 +266,14 @@ public unsafe class Game
     public static bool LoadReplay(string path)
     {
         var newReplay = ReadReplay(path);
-        if (newReplay == IntPtr.Zero) return false;
+        if (newReplay == null) return false;
 
-        if (replayLoaded)
-            Marshal.FreeHGlobal(replayBytesPtr);
+        if (loadedReplay != null)
+            Marshal.FreeHGlobal((IntPtr)loadedReplay);
 
-        replayBytesPtr = newReplay;
-        replayLoaded = true;
-        LoadReplayInfo();
+        loadedReplay = newReplay;
+        ffxivReplay->replayHeader = loadedReplay->header;
+        ffxivReplay->chapters = loadedReplay->chapters;
         ffxivReplay->dataLoadType = 0;
 
         ARealmRecorded.Config.LastLoadedReplay = path;
@@ -288,13 +282,13 @@ public unsafe class Game
 
     public static bool UnloadReplay()
     {
-        if (!replayLoaded) return false;
-        Marshal.FreeHGlobal(replayBytesPtr);
-        replayLoaded = false;
+        if (loadedReplay == null) return false;
+        Marshal.FreeHGlobal((IntPtr)loadedReplay);
+        loadedReplay = null;
         return true;
     }
 
-    public static IntPtr ReadReplay(string path)
+    public static Structures.FFXIVReplay.ReplayFile* ReadReplay(string path)
     {
         var ptr = IntPtr.Zero;
         var allocated = false;
@@ -319,7 +313,7 @@ public unsafe class Game
             }
         }
 
-        return ptr;
+        return (Structures.FFXIVReplay.ReplayFile*)ptr;
     }
 
     public static Structures.FFXIVReplay.Header? ReadReplayHeader(string path)
@@ -327,8 +321,9 @@ public unsafe class Game
         try
         {
             using var fs = File.OpenRead(path);
-            var bytes = new byte[replayHeaderSize];
-            if (fs.Read(bytes, 0, replayHeaderSize) != replayHeaderSize)
+            var size = sizeof(Structures.FFXIVReplay.Header);
+            var bytes = new byte[size];
+            if (fs.Read(bytes, 0, size) != size)
                 return null;
             fixed (byte* ptr = &bytes[0])
                 return *(Structures.FFXIVReplay.Header*)ptr;
@@ -338,13 +333,6 @@ public unsafe class Game
             PluginLog.Error($"Failed to read replay header {path}\n{e}");
             return null;
         }
-    }
-
-    public static void LoadReplayInfo()
-    {
-        if (!replayLoaded) return;
-        ffxivReplay->replayHeader = *(Structures.FFXIVReplay.Header*)replayBytesPtr;
-        ffxivReplay->chapters = *(Structures.FFXIVReplay.ChapterArray*)(replayBytesPtr + sizeof(Structures.FFXIVReplay.Header));
     }
 
     public static void FixNextReplaySaveSlot()
@@ -394,11 +382,11 @@ public unsafe class Game
     {
         offset = 0;
 
-        while (ffxivReplay->replayHeader.replayLength > offset)
+        Structures.FFXIVReplay.ReplayDataSegment* segment;
+        while ((segment = loadedReplay->GetDataSegment(offset)) != null)
         {
-            var segment = (Structures.FFXIVReplay.ReplayDataSegment*)((long)replayBytesPtr + replayHeaderSize + offset);
             if (segment->ms >= ms) return segment;
-            offset += (uint)(0xC + segment->dataLength);
+            offset += segment->Length;
         }
 
         return null;
@@ -643,26 +631,27 @@ public unsafe class Game
 #if DEBUG
     public static void ReadPackets(string path)
     {
-        var ptr = ReadReplay(path);
-        if (ptr == IntPtr.Zero) return;
+        var replay = ReadReplay(path);
+        if (replay == null) return;
 
-        var header = (Structures.FFXIVReplay.Header*)ptr;
         var opcodeCount = new Dictionary<uint, uint>();
         var opcodeLengths = new Dictionary<uint, uint>();
 
-        var offset = 0;
-        var totalPackets = 0;
-        while (header->replayLength > offset)
-        {
-            var segment = (Structures.FFXIVReplay.ReplayDataSegment*)((long)ptr + replayHeaderSize + offset);
+        var offset = 0u;
+        var totalPackets = 0u;
 
+        Structures.FFXIVReplay.ReplayDataSegment* segment;
+        while ((segment = replay->GetDataSegment(offset)) != null)
+        {
             opcodeCount.TryGetValue(segment->opcode, out var count);
             opcodeCount[segment->opcode] = ++count;
 
             opcodeLengths[segment->opcode] = segment->dataLength;
-            offset += 0xC + segment->dataLength;
+            offset += segment->Length;
             ++totalPackets;
         }
+
+        Marshal.FreeHGlobal((IntPtr)replay);
 
         PluginLog.Information("-------------------");
         PluginLog.Information($"Opcodes inside: {path} (Total: [{opcodeCount.Count}] {totalPackets})");
@@ -723,7 +712,7 @@ public unsafe class Game
         if (ffxivReplay != null)
             SetSavedRecordingCIDs(0);
 
-        if (!replayLoaded) return;
+        if (loadedReplay == null) return;
 
         if (InPlayback)
         {
@@ -731,7 +720,7 @@ public unsafe class Game
             ARealmRecorded.PrintError("Plugin was unloaded, playback will be broken if the plugin or recording is not reloaded.");
         }
 
-        Marshal.FreeHGlobal(replayBytesPtr);
-        replayLoaded = false;
+        Marshal.FreeHGlobal((IntPtr)loadedReplay);
+        loadedReplay = null;
     }
 }
