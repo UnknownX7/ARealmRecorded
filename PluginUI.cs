@@ -19,6 +19,7 @@ public static class PluginUI
     private static bool loadedPlayback = true;
 
     private static bool showSettings = false;
+    private static bool showDebug = false;
 
     private static uint savedMS = 0;
 
@@ -158,7 +159,15 @@ public static class PluginUI
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
         if (showSettings && !Game.IsLoadingChapter)
+        {
             DrawSettings();
+            ImGui.Separator();
+        }
+        else if (showDebug)
+        {
+            DrawDebug();
+            ImGui.Separator();
+        }
 
         ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.Users.ToIconString()))
@@ -182,6 +191,11 @@ public static class PluginUI
         ImGui.SameLine();
         if (ImGui.Button(FontAwesomeIcon.Wrench.ToIconString()))
             showSettings ^= true;
+#if DEBUG
+        ImGui.SameLine();
+        if (ImGui.Button(FontAwesomeIcon.ExclamationTriangle.ToIconString()))
+            showDebug ^= true;
+#endif
         ImGui.PopFont();
 
         ImGui.SetNextItemWidth(200);
@@ -226,9 +240,19 @@ public static class PluginUI
                 ImGui.SetTooltip("Can cause issues with some fights that contain arena changes.");
         }
 
-        ImGui.Separator();
-
         if (save)
             ARealmRecorded.Config.Save();
+    }
+
+    private static unsafe void DrawDebug()
+    {
+        var segment = Game.GetReplayDataSegmentDetour(Game.ffxivReplay);
+        if (segment == null) return;
+
+        ImGui.TextUnformatted($"Offset: {Game.ffxivReplay->overallDataOffset + sizeof(Structures.FFXIVReplay.Header) + sizeof(Structures.FFXIVReplay.ChapterArray):X}");
+        ImGui.TextUnformatted($"Op-code: {segment->opcode:X}");
+        ImGui.TextUnformatted($"Data Length: {segment->dataLength}");
+        ImGui.TextUnformatted($"Time: {segment->ms / 1000f}");
+        ImGui.TextUnformatted($"Object ID: {segment->objectID:X}");
     }
 }
