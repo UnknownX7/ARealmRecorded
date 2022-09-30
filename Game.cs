@@ -40,6 +40,7 @@ public unsafe class Game
     private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
     private static readonly Memory.Replacer removeProcessingLimitReplacer2 = new("77 57 48 8B 0D ?? ?? ?? ?? 33 C0", new byte[] { 0x90, 0x90 }, true);
     private static readonly Memory.Replacer forceFastForwardReplacer = new("0F 83 ?? ?? ?? ?? 0F B7 47 02 4C 8D 47 0C", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
+    private static readonly Memory.Replacer fixP8Replacer = new("73 ?? 8B 52 08 48 8D 0D", new byte[] { 0xEB }, true);
 
     [Signature("48 8D 0D ?? ?? ?? ?? 88 44 24 24", ScanType = ScanType.StaticAddress)]
     public static Structures.FFXIVReplay* ffxivReplay;
@@ -143,6 +144,14 @@ public unsafe class Game
             LoadReplay(ffxivReplay->currentReplaySlot);
         else
             LoadReplay(lastSelectedReplay);
+
+        // TODO: remove in 6.3
+        if (loadedReplay == null) return;
+
+        if (loadedReplay->header.contentID is 883 or 884)
+            fixP8Replacer.Enable();
+        else
+            fixP8Replacer.Disable();
     }
 
     [Signature("E8 ?? ?? ?? ?? F6 83 ?? ?? ?? ?? 04 74 38 F6 83 ?? ?? ?? ?? 01", DetourName = "PlaybackUpdateDetour")]
