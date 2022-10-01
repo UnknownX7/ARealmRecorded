@@ -1,5 +1,5 @@
 ﻿using System;
-using System.IO;
+using System.Diagnostics;
 using System.Numerics;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface;
@@ -8,7 +8,7 @@ using ImGuiNET;
 
 namespace ARealmRecorded;
 
-public static class PluginUI
+public static unsafe class PluginUI
 {
     public static readonly float[] presetSpeeds = { 0.5f, 1, 2, 5, 10, 20, 60 };
 
@@ -23,13 +23,16 @@ public static class PluginUI
 
     private static uint savedMS = 0;
 
+    private static float lastSeek = 0;
+    private static readonly Stopwatch lastSeekChange = new();
+
     public static void Draw()
     {
         DrawExpandedDutyRecorderMenu();
         DrawExpandedPlaybackControls();
     }
 
-    public static unsafe void DrawExpandedDutyRecorderMenu()
+    public static void DrawExpandedDutyRecorderMenu()
     {
         if (DalamudApi.GameGui.GameUiHidden) return;
 
@@ -125,7 +128,7 @@ public static class PluginUI
         ImGui.EndChild();
     }
 
-    public static unsafe void DrawExpandedPlaybackControls()
+    public static void DrawExpandedPlaybackControls()
     {
         if (DalamudApi.GameGui.GameUiHidden || DalamudApi.Condition[ConditionFlag.WatchingCutscene]) return;
         //if (Game.ffxivReplay->selectedChapter != 64) return; // Apparently people don't like this :(
@@ -191,12 +194,41 @@ public static class PluginUI
         ImGui.SameLine();
         if (ImGui.Button(FontAwesomeIcon.Wrench.ToIconString()))
             showSettings ^= true;
+
+        ImGui.SameLine();
+        ImGui.Button(FontAwesomeIcon.Skull.ToIconString());
+        if (ImGui.BeginPopupContextItem(null, ImGuiPopupFlags.MouseButtonLeft))
+        {
+            if (ImGui.Selectable(FontAwesomeIcon.DoorOpen.ToIconString()))
+                Game.ffxivReplay->overallDataOffset = long.MaxValue;
+            ImGui.EndPopup();
+        }
+
 #if DEBUG
         ImGui.SameLine();
         if (ImGui.Button(FontAwesomeIcon.ExclamationTriangle.ToIconString()))
             showDebug ^= true;
 #endif
         ImGui.PopFont();
+
+        if (Game.IsLoadingChapter)
+        {
+            var seek = Game.ffxivReplay->seek;
+            if (seek != lastSeek)
+            {
+                lastSeek = seek;
+                lastSeekChange.Restart();
+            }
+
+            if (lastSeekChange.ElapsedMilliseconds >= 2000)
+            {
+                ImGui.SameLine();
+                var segment = Game.GetReplayDataSegmentDetour(Game.ffxivReplay);
+                if (ImGui.Button("Unstuck") && segment != null)
+                    Game.ffxivReplay->overallDataOffset += segment->Length;
+            }
+
+        }
 
         ImGui.SetNextItemWidth(200);
         var speed = Game.ffxivReplay->speed;
@@ -244,7 +276,7 @@ public static class PluginUI
             ARealmRecorded.Config.Save();
     }
 
-    private static unsafe void DrawDebug()
+    private static void DrawDebug()
     {
         var segment = Game.GetReplayDataSegmentDetour(Game.ffxivReplay);
         if (segment == null) return;

@@ -50,7 +50,7 @@ public unsafe class Game
 
     public static bool InPlayback => (ffxivReplay->playbackControls & 4) != 0;
     public static bool IsRecording => (ffxivReplay->status & 0x74) == 0x74;
-    public static bool IsLoadingChapter => ffxivReplay->selectedChapter != 64;
+    public static bool IsLoadingChapter => ffxivReplay->selectedChapter < 0x40;
 
     public static bool IsWaymarkVisible => (*waymarkToggle & 2) == 0;
 
