@@ -220,7 +220,7 @@ public static unsafe class PluginUI
                 lastSeekChange.Restart();
             }
 
-            if (lastSeekChange.ElapsedMilliseconds >= 2000)
+            if (lastSeekChange.ElapsedMilliseconds >= 3000)
             {
                 ImGui.SameLine();
                 var segment = Game.GetReplayDataSegmentDetour(Game.ffxivReplay);
