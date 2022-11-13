@@ -11,6 +11,7 @@ using Dalamud.Logging;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 
 namespace ARealmRecorded;
 
@@ -251,7 +252,7 @@ public unsafe class Game
     private delegate IntPtr EventBeginDelegate(IntPtr a1, IntPtr a2);
     [Signature("40 55 53 57 41 55 41 57 48 8D 6C 24 C9")]
     private static Hook<EventBeginDelegate> EventBeginHook;
-    private static IntPtr EventBeginDetour(IntPtr a1, IntPtr a2) => !InPlayback ? EventBeginHook.Original(a1, a2) : IntPtr.Zero;
+    private static IntPtr EventBeginDetour(IntPtr a1, IntPtr a2) => !InPlayback || ConfigModule.Instance()->GetIntValue(ConfigOption.CutsceneSkipIsContents) == 0 ? EventBeginHook.Original(a1, a2) : IntPtr.Zero;
 
     public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
 
