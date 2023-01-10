@@ -71,7 +71,7 @@ public unsafe struct FFXIVReplay
 
                 fixed (void* ptr = &this)
                 {
-                    return (Chapter*)((IntPtr)ptr + 4) + i;
+                    return (Chapter*)((nint)ptr + 4) + i;
                 }
             }
         }
@@ -132,9 +132,9 @@ public unsafe struct FFXIVReplay
     }
 
     [FieldOffset(0x0)] public int replayVersion; // No idea if this is the version of the game or the version of the replay system
-    [FieldOffset(0x8)] public IntPtr fileStream; // Start of save/read area
-    [FieldOffset(0x10)] public IntPtr fileStreamNextWrite; // Next area to be written to while recording
-    [FieldOffset(0x18)] public IntPtr fileStreamEnd; // End of save/read area
+    [FieldOffset(0x8)] public nint fileStream; // Start of save/read area
+    [FieldOffset(0x10)] public nint fileStreamNextWrite; // Next area to be written to while recording
+    [FieldOffset(0x18)] public nint fileStreamEnd; // End of save/read area
     [FieldOffset(0x20)] public long u0x20;
     [FieldOffset(0x28)] public long u0x28;
     [FieldOffset(0x30)] public long dataOffset; // Next? offset of bytes to read from the save/read area (up to 1MB)
@@ -162,8 +162,8 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x5A4)] public byte u0x5A4;
     [FieldOffset(0x5A5)] public byte nextReplaySaveSlot;
     [FieldOffset(0x5A8)] public Header* savedReplayHeaders; // Pointer to the three saved replay headers
-    [FieldOffset(0x5B0)] public IntPtr u0x5B0; // Pointer right after the file headers
-    [FieldOffset(0x5B8)] public IntPtr u0x5B8; // Same as above?
+    [FieldOffset(0x5B0)] public nint u0x5B0; // Pointer right after the file headers
+    [FieldOffset(0x5B8)] public nint u0x5B8; // Same as above?
     [FieldOffset(0x5C0)] public byte u0x5C0;
     [FieldOffset(0x5C4)] public uint localPlayerObjectID;
     [FieldOffset(0x5C8)] public InitZonePacket initZonePacket; // The last received InitZone is saved here

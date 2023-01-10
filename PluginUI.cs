@@ -39,8 +39,8 @@ public static unsafe class PluginUI
         var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting", 1);
         if (addon == null || !addon->IsVisible || (addon->Flags & 16) == 0) return;
 
-        var agent = DalamudApi.GameGui.FindAgentInterface((IntPtr)addon);
-        if (agent == IntPtr.Zero) return;
+        var agent = DalamudApi.GameGui.FindAgentInterface((nint)addon);
+        if (agent == nint.Zero) return;
 
         //var units = AtkStage.GetSingleton()->RaptureAtkUnitManager->AtkUnitManager.FocusedUnitsList;
         //var count = units.Count;
