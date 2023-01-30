@@ -175,15 +175,21 @@ public static unsafe class PluginUI
         ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.Users.ToIconString()))
             Game.EnterGroupPose();
+        ImGui.PopFont();
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Enters group pose.");
+
         ImGui.SameLine();
+        ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.Video.ToIconString()))
             Game.EnterIdleCamera();
         ImGui.PopFont();
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Enters idle camera on the current focus target.");
-        ImGui.PushFont(UiBuilder.IconFont);
+        
         ImGui.SameLine();
         var v = Game.IsWaymarkVisible;
+        ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(v ? FontAwesomeIcon.ToggleOn.ToIconString() : FontAwesomeIcon.ToggleOff.ToIconString()))
             Game.ToggleWaymarks();
         ImGui.PopFont();
@@ -211,9 +217,9 @@ public static unsafe class PluginUI
 #endif
         ImGui.PopFont();
 
+        var seek = Game.ffxivReplay->seek;
         if (Game.IsLoadingChapter)
         {
-            var seek = Game.ffxivReplay->seek;
             if (seek != lastSeek)
             {
                 lastSeek = seek;
@@ -228,6 +234,23 @@ public static unsafe class PluginUI
                     Game.ffxivReplay->overallDataOffset += segment->Length;
             }
 
+        }
+
+        ImGui.SetNextItemWidth(200);
+        var start_ms = (float)Game.ffxivReplay->startingMS / 1000.0f;
+        var seek_min = Game.ffxivReplay->seek - start_ms;
+        var seek_max = Game.ffxivReplay->replayHeader.ms;
+        var hours = MathF.Floor(seek_min / 3600.0f).ToString().PadLeft(2, '0');
+        var minutes = MathF.Floor((seek_min % 3600.0f) / 60.0f).ToString().PadLeft(2, '0');
+        var seconds = MathF.Truncate(seek_min % 60.0f).ToString().PadLeft(2, '0');
+        if (ImGui.SliderFloat("Time", ref seek_min, 0.0f, (float)seek_max / 1000.0f, $"{hours}:{minutes}:{seconds}", ImGuiSliderFlags.NoInput)) {
+            var time = seek_min + start_ms;
+            var time_ms = (uint)(time * 1000.0f);
+            var seg = Game.FindNextDataSegment(time_ms, out var offset);
+            if (seg != null) {
+                Game.ffxivReplay->overallDataOffset = offset;
+                Game.ffxivReplay->seek = time;
+            }
         }
 
         ImGui.SetNextItemWidth(200);
