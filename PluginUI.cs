@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Numerics;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
 
@@ -25,6 +26,17 @@ public static unsafe class PluginUI
 
     private static float lastSeek = 0;
     private static readonly Stopwatch lastSeekChange = new();
+
+    private static unsafe uint GetUIWidth()
+    {
+        RaptureAtkUnitManager* manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
+        if (manager == null) return 200;
+
+        AtkUnitBase* unit = manager->GetAddonByName("ContentsReplayPlayer");
+        if (unit == null) return 200;
+
+        return (uint)(unit->RootNode->Width * unit->RootNode->ScaleX);
+    }
 
     public static void Draw()
     {
@@ -236,7 +248,8 @@ public static unsafe class PluginUI
 
         }
 
-        ImGui.SetNextItemWidth(200);
+        var slider_width = GetUIWidth() - (2 * ImGui.CalcTextSize("Speed").X);
+        ImGui.SetNextItemWidth(slider_width);
         var start_ms = (float)Game.ffxivReplay->startingMS / 1000.0f;
         var seek_min = Game.ffxivReplay->seek - start_ms;
         var seek_max = Game.ffxivReplay->replayHeader.ms;
@@ -253,9 +266,25 @@ public static unsafe class PluginUI
             }
         }
 
-        ImGui.SetNextItemWidth(200);
+        if (ImGui.IsItemHovered()) {
+            var mouse_pos = ImGui.GetMousePos().X;
+            var slider_pos = ImGui.GetItemRectMin().X;
+            var preview_ms = (mouse_pos - slider_pos) / slider_width * (seek_max / 1000.0f);
+            if (preview_ms >= 0.0f && preview_ms <= (seek_max / 1000.0f))
+            {
+                var preview_time = preview_ms + start_ms;
+                var preview_hours = MathF.Floor(preview_time / 3600.0f).ToString().PadLeft(2, '0');
+                var preview_minutes = MathF.Floor((preview_time % 3600.0f) / 60.0f).ToString().PadLeft(2, '0');
+                var preview_seconds = MathF.Truncate(preview_time % 60.0f).ToString().PadLeft(2, '0');
+                ImGui.BeginTooltip();
+                ImGui.Text($"{preview_hours}:{preview_minutes}:{preview_seconds}");
+                ImGui.EndTooltip();
+            }
+        }
+
+        ImGui.SetNextItemWidth(slider_width);
         var speed = Game.ffxivReplay->speed;
-        if (ImGui.SliderFloat("Speed", ref speed, 0.1f, 10, "%.1f", ImGuiSliderFlags.NoInput))
+        if (ImGui.SliderFloat("Speed", ref speed, 0.05f, 10.0f, "%.2f", ImGuiSliderFlags.NoInput))
             Game.ffxivReplay->speed = speed;
 
         for (int i = 0; i < presetSpeeds.Length; i++)
