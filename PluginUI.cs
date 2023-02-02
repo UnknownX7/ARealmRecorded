@@ -280,10 +280,11 @@ public static unsafe class PluginUI
         if (ImGui.IsItemHovered()) {
             var mouse_pos = ImGui.GetMousePos().X;
             var slider_pos = ImGui.GetItemRectMin().X;
-            var preview_ms = (mouse_pos - slider_pos) / slider_width * (seek_max / 1000.0f);
-            if (preview_ms >= 0.0f && preview_ms <= (seek_max / 1000.0f))
+            var completion = (mouse_pos - slider_pos) / slider_width;
+            if (completion >= 0.0f && completion <= 1.0f)
             {
-                var preview_time = preview_ms + start_ms;
+                var preview_ms = completion * (seek_max / 1000.0f);
+                var preview_time = preview_ms + seek_min;
                 var preview_hours = MathF.Floor(preview_time / 3600.0f).ToString().PadLeft(2, '0');
                 var preview_minutes = MathF.Floor((preview_time % 3600.0f) / 60.0f).ToString().PadLeft(2, '0');
                 var preview_seconds = MathF.Truncate(preview_time % 60.0f).ToString().PadLeft(2, '0');
