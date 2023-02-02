@@ -38,6 +38,17 @@ public static unsafe class PluginUI
         return (uint)(unit->RootNode->Width * unit->RootNode->ScaleX);
     }
 
+    private static unsafe float GetGameUIScale()
+    {
+        RaptureAtkUnitManager* manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
+        if (manager == null) return 1.0f;
+
+        AtkUnitBase* unit = manager->GetAddonByName("ContentsReplayPlayer");
+        if (unit == null) return 1.0f;
+
+        return unit->GetGlobalUIScale();
+    }
+
     public static void Draw()
     {
         DrawExpandedDutyRecorderMenu();
@@ -170,7 +181,7 @@ public static unsafe class PluginUI
         if (addon == null) return;
 
         ImGuiHelpers.ForceNextWindowMainViewport();
-        ImGui.SetNextWindowPos(new(addon->X, addon->Y), ImGuiCond.Always, Vector2.UnitY);
+        ImGui.SetNextWindowPos(new(addon->X + (8 * GetGameUIScale()), addon->Y), ImGuiCond.Always, Vector2.UnitY);
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
         if (showSettings && !Game.IsLoadingChapter)
