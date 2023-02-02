@@ -262,12 +262,12 @@ public static unsafe class PluginUI
         var slider_width = GetUIWidth() - (2 * ImGui.CalcTextSize("Speed").X);
         ImGui.SetNextItemWidth(slider_width);
         var start_ms = (float)Game.ffxivReplay->startingMS / 1000.0f;
+        var end_ms = (float)Game.ffxivReplay->replayHeader.ms / 1000.0f;
         var seek_min = Game.ffxivReplay->seek - start_ms;
-        var seek_max = Game.ffxivReplay->replayHeader.ms;
         var hours = MathF.Floor(seek_min / 3600.0f).ToString().PadLeft(2, '0');
         var minutes = MathF.Floor((seek_min % 3600.0f) / 60.0f).ToString().PadLeft(2, '0');
         var seconds = MathF.Truncate(seek_min % 60.0f).ToString().PadLeft(2, '0');
-        if (ImGui.SliderFloat("Time", ref seek_min, 0.0f, (float)seek_max / 1000.0f, $"{hours}:{minutes}:{seconds}", ImGuiSliderFlags.NoInput)) {
+        if (ImGui.SliderFloat("Time", ref seek_min, 0.0f, end_ms, $"{hours}:{minutes}:{seconds}", ImGuiSliderFlags.NoInput)) {
             var time = seek_min + start_ms;
             var time_ms = (uint)(time * 1000.0f);
             var seg = Game.FindNextDataSegment(time_ms, out var offset);
@@ -283,13 +283,13 @@ public static unsafe class PluginUI
             var completion = (mouse_pos - slider_pos) / slider_width;
             if (completion >= 0.0f && completion <= 1.0f)
             {
-                var preview_ms = completion * (seek_max / 1000.0f);
-                var preview_time = preview_ms + seek_min;
+                var preview_time = (completion * end_ms);
                 var preview_hours = MathF.Floor(preview_time / 3600.0f).ToString().PadLeft(2, '0');
                 var preview_minutes = MathF.Floor((preview_time % 3600.0f) / 60.0f).ToString().PadLeft(2, '0');
                 var preview_seconds = MathF.Truncate(preview_time % 60.0f).ToString().PadLeft(2, '0');
                 ImGui.BeginTooltip();
                 ImGui.Text($"{preview_hours}:{preview_minutes}:{preview_seconds}");
+                ImGui.Text(completion.ToString());
                 ImGui.EndTooltip();
             }
         }
