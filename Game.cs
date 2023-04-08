@@ -592,7 +592,7 @@ public unsafe class Game
             var fileName = GetReplaySlotName(currentRecordingSlot);
             var (file, _) = GetReplayList().First(t => t.Item1.Name == fileName);
 
-            var name = $"{bannedFolderCharacters.Replace(ffxivReplay->contentTitle.ToString(), string.Empty)} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
+            var name = $"{bannedFolderCharacters.Replace(ffxivReplay->contentTitle.ToString(), string.Empty)}@{DateTime.Now:yyyy.MM.dd HH.mm.ss}";
             file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
 
             var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
