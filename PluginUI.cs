@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Numerics;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
 
@@ -25,6 +26,28 @@ public static unsafe class PluginUI
 
     private static float lastSeek = 0;
     private static readonly Stopwatch lastSeekChange = new();
+
+    private static unsafe uint GetUIWidth()
+    {
+        RaptureAtkUnitManager* manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
+        if (manager == null) return 200;
+
+        AtkUnitBase* unit = manager->GetAddonByName("ContentsReplayPlayer");
+        if (unit == null) return 200;
+
+        return (uint)(unit->RootNode->Width * unit->RootNode->ScaleX);
+    }
+
+    private static unsafe float GetGameUIScale()
+    {
+        RaptureAtkUnitManager* manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
+        if (manager == null) return 1.0f;
+
+        AtkUnitBase* unit = manager->GetAddonByName("ContentsReplayPlayer");
+        if (unit == null) return 1.0f;
+
+        return unit->GetGlobalUIScale();
+    }
 
     public static void Draw()
     {
@@ -158,7 +181,7 @@ public static unsafe class PluginUI
         if (addon == null) return;
 
         ImGuiHelpers.ForceNextWindowMainViewport();
-        ImGui.SetNextWindowPos(new(addon->X, addon->Y), ImGuiCond.Always, Vector2.UnitY);
+        ImGui.SetNextWindowPos(new(addon->X + (8 * GetGameUIScale()), addon->Y), ImGuiCond.Always, Vector2.UnitY);
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
         if (showSettings && !Game.IsLoadingChapter)
@@ -175,15 +198,21 @@ public static unsafe class PluginUI
         ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.Users.ToIconString()))
             Game.EnterGroupPose();
+        ImGui.PopFont();
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Enters group pose.");
+
         ImGui.SameLine();
+        ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.Video.ToIconString()))
             Game.EnterIdleCamera();
         ImGui.PopFont();
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Enters idle camera on the current focus target.");
-        ImGui.PushFont(UiBuilder.IconFont);
+        
         ImGui.SameLine();
         var v = Game.IsWaymarkVisible;
+        ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(v ? FontAwesomeIcon.ToggleOn.ToIconString() : FontAwesomeIcon.ToggleOff.ToIconString()))
             Game.ToggleWaymarks();
         ImGui.PopFont();
@@ -211,9 +240,9 @@ public static unsafe class PluginUI
 #endif
         ImGui.PopFont();
 
+        var seek = Game.ffxivReplay->seek;
         if (Game.IsLoadingChapter)
         {
-            var seek = Game.ffxivReplay->seek;
             if (seek != lastSeek)
             {
                 lastSeek = seek;
@@ -230,9 +259,44 @@ public static unsafe class PluginUI
 
         }
 
-        ImGui.SetNextItemWidth(200);
+        var slider_width = GetUIWidth() - (2 * ImGui.CalcTextSize("Speed").X);
+        ImGui.SetNextItemWidth(slider_width);
+        var start_ms = (float)Game.ffxivReplay->startingMS / 1000.0f;
+        var end_ms = (float)Game.ffxivReplay->replayHeader.ms / 1000.0f;
+        var seek_min = Game.ffxivReplay->seek - start_ms;
+        var hours = MathF.Floor(seek_min / 3600.0f).ToString().PadLeft(2, '0');
+        var minutes = MathF.Floor((seek_min % 3600.0f) / 60.0f).ToString().PadLeft(2, '0');
+        var seconds = MathF.Truncate(seek_min % 60.0f).ToString().PadLeft(2, '0');
+        if (ImGui.SliderFloat("Time", ref seek_min, 0.0f, end_ms, $"{hours}:{minutes}:{seconds}", ImGuiSliderFlags.NoInput)) {
+            var time = seek_min + start_ms;
+            var time_ms = (uint)(time * 1000.0f);
+            var seg = Game.FindNextDataSegment(time_ms, out var offset);
+            if (seg != null) {
+                Game.ffxivReplay->overallDataOffset = offset;
+                Game.ffxivReplay->seek = time;
+            }
+        }
+
+        if (ImGui.IsItemHovered()) {
+            var mouse_pos = ImGui.GetMousePos().X;
+            var slider_pos = ImGui.GetItemRectMin().X;
+            var completion = (mouse_pos - slider_pos) / slider_width;
+            if (completion >= 0.0f && completion <= 1.0f)
+            {
+                var preview_time = (completion * end_ms);
+                var preview_hours = MathF.Floor(preview_time / 3600.0f).ToString().PadLeft(2, '0');
+                var preview_minutes = MathF.Floor((preview_time % 3600.0f) / 60.0f).ToString().PadLeft(2, '0');
+                var preview_seconds = MathF.Truncate(preview_time % 60.0f).ToString().PadLeft(2, '0');
+                ImGui.BeginTooltip();
+                ImGui.Text($"{preview_hours}:{preview_minutes}:{preview_seconds}");
+                ImGui.Text(completion.ToString());
+                ImGui.EndTooltip();
+            }
+        }
+
+        ImGui.SetNextItemWidth(slider_width);
         var speed = Game.ffxivReplay->speed;
-        if (ImGui.SliderFloat("Speed", ref speed, 0.1f, 10, "%.1f", ImGuiSliderFlags.NoInput))
+        if (ImGui.SliderFloat("Speed", ref speed, 0.05f, 10.0f, "%.2f", ImGuiSliderFlags.NoInput))
             Game.ffxivReplay->speed = speed;
 
         for (int i = 0; i < presetSpeeds.Length; i++)
