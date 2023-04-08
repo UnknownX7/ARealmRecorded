@@ -73,7 +73,7 @@ public static unsafe class PluginUI
         var addonH = (addon->RootNode->GetHeight() - 11) * addon->Scale;
         ImGuiHelpers.ForceNextWindowMainViewport();
         ImGui.SetNextWindowPos(new(addon->X + addonW, addon->Y));
-        ImGui.SetNextWindowSize(new Vector2(400 * ImGuiHelpers.GlobalScale, addonH));
+        ImGui.SetNextWindowSize(new Vector2(500 * ImGuiHelpers.GlobalScale, addonH));
         ImGui.Begin("Expanded Duty Recorder", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
         ImGui.PushFont(UiBuilder.IconFont);
