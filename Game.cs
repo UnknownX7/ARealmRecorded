@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
 using Dalamud.Logging;
+using Dalamud.Memory;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
@@ -35,6 +36,12 @@ public unsafe class Game
 
     private static List<(FileInfo, Structures.FFXIVReplay.Header)> replayList;
     public static List<(FileInfo, Structures.FFXIVReplay.Header)> ReplayList => replayList ?? GetReplayList();
+    
+    private const int RsfSize = 0x48;
+    private const ushort RsfOpcde = 0xF002;
+    private static List<byte[]> RsfBuffer = new();
+    private const ushort RsvOpcde = 0xF001;
+    private static List<byte[]> RsvBuffer = new();
 
     private static readonly Memory.Replacer alwaysRecordReplacer = new("A8 04 75 27 A8 02 74 23 48 8B", new byte[] { 0xEB, 0x21 }, true); // 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90
     private static readonly Memory.Replacer removeRecordReadyToastReplacer = new("BA CB 07 00 00 48 8B CF E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
@@ -101,6 +108,25 @@ public unsafe class Game
 
         if (contentDirectorOffset > 0)
             ContentDirectorTimerUpdateHook?.Enable();
+
+        if (IsRecording) {
+            PluginLog.Debug($"Start recording {RsfBuffer.Count} rsf");
+            foreach (var rsf in RsfBuffer) {
+                fixed (byte* data = rsf) {
+                    //var size = *(int*)data;   //Value size
+                    //var length = size + 0x4 + 0x30;     //package size
+                    RecordPacket(ffxivReplay, 0xE000_0000, RsfOpcde, (IntPtr)data, (ulong)rsf.Length);
+                }
+            }
+            PluginLog.Debug($"Start recording {RsvBuffer.Count} rsv");
+            foreach (var rsv in RsvBuffer) {
+                fixed (byte* data = rsv) {
+                    RecordPacket(ffxivReplay, 0xE000_0000, RsvOpcde, (IntPtr)data, (ulong)rsv.Length);
+                }
+            }
+            RsfBuffer.Clear();
+            RsvBuffer.Clear();
+        }
     }
 
     private delegate byte RequestPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte slot);
@@ -244,6 +270,53 @@ public unsafe class Game
     [Signature("40 55 53 57 41 55 41 57 48 8D 6C 24 C9")]
     private static Hook<EventBeginDelegate> EventBeginHook;
     private static nint EventBeginDetour(nint a1, nint a2) => !InPlayback || ConfigModule.Instance()->GetIntValue(ConfigOption.CutsceneSkipIsContents) == 0 ? EventBeginHook.Original(a1, a2) : nint.Zero;
+
+    public unsafe delegate long RsvReceiveDelegate(IntPtr a1);
+    [Signature("44 8B 09 4C 8D 41 34", DetourName = nameof(RsvReceiveDetour))]
+    private static Hook<RsvReceiveDelegate> RsvReceiveHook;
+    private static long RsvReceiveDetour(IntPtr a1)
+    {
+        //PluginLog.Debug("Received a RSV packet,");
+        var size = *(int*)a1;   //Value size
+        var length = size + 0x4 + 0x30;     //package size
+        RsvBuffer.Add(MemoryHelper.ReadRaw(a1, length));
+        var ret = RsvReceiveHook.Original(a1);
+        //PluginLog.Debug($"RSV:RET = {ret:X},Num of received:{RsvBuffer.Count}");
+        return ret;
+    }
+
+    public unsafe delegate long RsfReceiveDelegate(IntPtr a1);
+    [Signature("48 8B 11 4C 8D 41 08", DetourName = nameof(RsfReceiveDetour))]
+    private static Hook<RsfReceiveDelegate> RsfReceiveHook;
+    private static long RsfReceiveDetour(IntPtr a1)
+    {
+        //PluginLog.Debug("Received a RSF packet");
+        RsfBuffer.Add(MemoryHelper.ReadRaw(a1, RsfSize));
+        var ret = RsfReceiveHook.Original(a1);
+        //PluginLog.Debug($"RSF:RET = {ret:X},Num of received:{RsvBuffer.Count}");
+        return ret;
+    }
+    [Signature("E8 ?? ?? ?? ?? 84 C0 74 60 33 C0")]
+    private static delegate* unmanaged<Structures.FFXIVReplay*, uint, ushort, IntPtr, ulong, uint> recordPacket;
+    public static void RecordPacket(Structures.FFXIVReplay* replayModule, uint targetId, ushort opcode, IntPtr data, ulong length) => recordPacket(replayModule,targetId,opcode,data,length);
+
+    private unsafe delegate uint DispatchPacketDelegate(Structures.FFXIVReplay* replayModule, IntPtr header, IntPtr data);
+    [Signature("E8 ?? ?? ?? ?? 80 BB ?? ?? ?? ?? ?? 77 93", DetourName = nameof(DispatchPacketDetour))]
+    private static Hook<DispatchPacketDelegate> DispatchPacketHook;
+    private static unsafe uint DispatchPacketDetour(Structures.FFXIVReplay* replayModule, nint header, nint data)
+    {
+        var opcode = *(ushort*)header;
+        //PluginLog.Debug($"Dispatch:0x{opcode:X}");
+        switch (opcode) {
+            case RsvOpcde:
+                RsvReceiveHook.Original(data);
+                break;
+            case RsfOpcde:
+                RsfReceiveHook.Original(data);
+                break;
+        }
+        return DispatchPacketHook.Original(replayModule, header, data);
+    }
 
     public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
 
@@ -688,6 +761,9 @@ public unsafe class Game
         ExecuteCommandHook.Enable();
         DisplayRecordingOnDTRBarHook.Enable();
         EventBeginHook.Enable();
+        RsvReceiveHook.Enable();
+        RsfReceiveHook.Enable();
+        DispatchPacketHook.Enable();
 
         waymarkToggle += 0x48;
 
@@ -709,6 +785,9 @@ public unsafe class Game
         DisplayRecordingOnDTRBarHook?.Dispose();
         ContentDirectorTimerUpdateHook?.Dispose();
         EventBeginHook?.Dispose();
+        RsvReceiveHook?.Dispose();
+        RsfReceiveHook?.Dispose();
+        DispatchPacketHook?.Dispose();
 
         if (ffxivReplay != null)
             SetSavedRecordingCIDs(0);
