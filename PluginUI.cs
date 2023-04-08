@@ -108,7 +108,7 @@ public static unsafe class PluginUI
                 if (!isPlayable)
                     ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
 
-                if (ImGui.Selectable(file.Directory?.Name == "autorenamed" ? $"◯ {name}" : name, path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
+                if (ImGui.Selectable(file.Directory?.Name == "autorenamed" ? $"{file.CreationTime:yyyy.MM.dd HH.mm.ss} | {name.Substring(0,name.IndexOf('@'))}" : name, path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
                     Game.SetDutyRecorderMenuSelection(agent, path, header);
 
                 if (!isPlayable)
