@@ -13,6 +13,7 @@ using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using ImGuiNET;
 
 namespace ARealmRecorded;
 
@@ -571,6 +572,32 @@ public unsafe class Game
         }
 
         return replayList;
+    }
+
+    public static void SortReplayList(ImGuiTableSortSpecsPtr sortspecs)
+    {
+        if (sortspecs.Specs.ColumnIndex == 0) // sort by date
+        {
+            if (sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending)
+            {
+                replayList = ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.CreationTime).ToList();
+            }
+            else
+            {
+                replayList = Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.CreationTime).ToList();
+            }
+        }
+        else // sort by name
+        {
+            if (sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending)
+            {
+                replayList = Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.Name).ToList();
+            }
+            else
+            {
+                replayList = Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.Name).ToList();
+            }
+        }
     }
 
     public static void RenameRecording(FileInfo file, string name)
