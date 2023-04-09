@@ -120,7 +120,7 @@ public static unsafe class PluginUI
 
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                ImGui.Text(creationTime.ToString("yyyy.MM.dd HH.mm.ss"));
+                ImGui.Text(creationTime.ToString("yyyy.MM.dd HH:mm:ss"));
                 ImGui.TableNextColumn();
 
                 if (editingRecording != i)
