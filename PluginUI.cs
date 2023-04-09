@@ -99,6 +99,14 @@ public static unsafe class PluginUI
         {
             ImGui.TableSetupColumn("Date", ImGuiTableColumnFlags.DefaultSort);
             ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableHeadersRow();
+
+            if (ImGui.TableGetSortSpecs().SpecsDirty)
+            {
+                var sortspecs = ImGui.TableGetSortSpecs();
+                Game.SortReplayList(sortspecs);
+                sortspecs.SpecsDirty = false;
+            }
 
             for (int i = 0; i < Game.ReplayList.Count; i++)
             {
