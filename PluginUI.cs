@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface;
+using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
 
@@ -264,7 +265,7 @@ public static unsafe class PluginUI
 
         ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.Users.ToIconString()))
-            Game.EnterGroupPose();
+            Framework.Instance()->GetUiModule()->EnterGPose();
         ImGui.PopFont();
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Enters group pose.");
@@ -272,7 +273,7 @@ public static unsafe class PluginUI
         ImGui.SameLine();
         ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.Video.ToIconString()))
-            Game.EnterIdleCamera();
+            Framework.Instance()->GetUiModule()->EnterIdleCam(0, DalamudApi.TargetManager.FocusTarget is { } focus ? focus.ObjectId : 0xE0000000);
         ImGui.PopFont();
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Enters idle camera on the current focus target.");
