@@ -160,7 +160,7 @@ public static unsafe class PluginUI
                     }
 
                     if (ImGui.Selectable("Delete"))
-                        Game.DeleteRecording(file);
+                        Game.DeleteRecording(file, true);
 
                     ImGui.EndPopup();
                 }

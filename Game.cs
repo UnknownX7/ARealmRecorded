@@ -603,7 +603,7 @@ public unsafe class Game
 
             var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
             if (renamedFiles.Count > 30)
-                renamedFiles.OrderBy(f => f.CreationTime).First().Delete();
+                DeleteRecording(renamedFiles.OrderBy(f => f.CreationTime).First(), false);
 
             GetReplayList();
             ffxivReplay->savedReplayHeaders[currentRecordingSlot] = new Structures.FFXIVReplay.Header();
@@ -614,7 +614,7 @@ public unsafe class Game
         }
     }
 
-    public static void DeleteRecording(FileInfo file)
+    public static void DeleteRecording(FileInfo file, bool printChat)
     {
         try
         {
@@ -622,18 +622,21 @@ public unsafe class Game
             if (!deletedDirectory.Exists)
                 deletedDirectory.Create();
 
-            file.MoveTo(Path.Combine(deletedFolder, file.Name));
+            file.MoveTo(Path.Combine(deletedFolder, file.Name), true);
 
             var deletedFiles = deletedDirectory.GetFiles().Where(f => f.Extension == ".dat").ToList();
             if (deletedFiles.Count > 10)
                 deletedFiles.OrderBy(f => f.CreationTime).First().Delete();
 
             GetReplayList();
-            ARealmRecorded.PrintEcho("Successfully moved the recording to the deleted folder!");
+
+            if (printChat)
+                ARealmRecorded.PrintEcho("Successfully moved the recording to the deleted folder!");
         }
         catch (Exception e)
         {
-            ARealmRecorded.PrintError($"Failed to delete recording\n{e}");
+            if (printChat)
+                ARealmRecorded.PrintError($"Failed to delete recording\n{e}");
         }
     }
 
