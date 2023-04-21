@@ -602,8 +602,11 @@ public unsafe class Game
             file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
 
             var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
-            if (renamedFiles.Count > 30)
+            while (renamedFiles.Count > 30)
+            {
                 DeleteRecording(renamedFiles.OrderBy(f => f.CreationTime).First(), false);
+                renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
+            }
 
             GetReplayList();
             ffxivReplay->savedReplayHeaders[currentRecordingSlot] = new Structures.FFXIVReplay.Header();
@@ -625,8 +628,11 @@ public unsafe class Game
             file.MoveTo(Path.Combine(deletedFolder, file.Name), true);
 
             var deletedFiles = deletedDirectory.GetFiles().Where(f => f.Extension == ".dat").ToList();
-            if (deletedFiles.Count > 10)
+            while (deletedFiles.Count > 10)
+            {
                 deletedFiles.OrderBy(f => f.CreationTime).First().Delete();
+                deletedFiles = deletedDirectory.GetFiles().Where(f => f.Extension == ".dat").ToList();
+            }
 
             GetReplayList();
 
