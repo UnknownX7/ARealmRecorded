@@ -73,7 +73,7 @@ public static unsafe class PluginUI
         var addonH = (addon->RootNode->GetHeight() - 11) * addon->Scale;
         ImGuiHelpers.ForceNextWindowMainViewport();
         ImGui.SetNextWindowPos(new(addon->X + addonW, addon->Y));
-        ImGui.SetNextWindowSize(new Vector2(400 * ImGuiHelpers.GlobalScale, addonH));
+        ImGui.SetNextWindowSize(new Vector2(500 * ImGuiHelpers.GlobalScale, addonH));
         ImGui.Begin("Expanded Duty Recorder", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
         ImGui.PushFont(UiBuilder.IconFont);
@@ -95,58 +95,78 @@ public static unsafe class PluginUI
             ImGui.SetTooltip("Enables the game's recording icon next to the world / time information (Server info bar).");
 
         ImGui.BeginChild("Recordings List", ImGui.GetContentRegionAvail(), true);
-        for (int i = 0; i < Game.ReplayList.Count; i++)
+        if (ImGui.BeginTable("Recordings Table", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Sortable))
         {
-            var (file, header) = Game.ReplayList[i];
+            ImGui.TableSetupColumn("Date", ImGuiTableColumnFlags.DefaultSort);
+            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableHeadersRow();
 
-            if (editingRecording != i)
+            if (ImGui.TableGetSortSpecs().SpecsDirty)
             {
-                var name = file.Name;
+                var sortspecs = ImGui.TableGetSortSpecs();
+                Game.SortReplayList(sortspecs);
+                sortspecs.SpecsDirty = false;
+            }
+
+            for (int i = 0; i < Game.ReplayList.Count; i++)
+            {
+                var (file, header) = Game.ReplayList[i];
+                var creationTime = file.CreationTime;
                 var path = file.FullName;
+                var filename = file.Name;
+                var displayName = file.Name.Substring(0, file.Name.IndexOf('@') > 0 ? file.Name.IndexOf('@') : file.Name.Length);
                 var isPlayable = header.IsPlayable;
+                var autorenamed = file.Directory?.Name == "autorenamed";
 
-                if (!isPlayable)
-                    ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.Text(creationTime.ToString("yyyy.MM.dd HH:mm:ss"));
+                ImGui.TableNextColumn();
 
-                if (ImGui.Selectable(file.Directory?.Name == "autorenamed" ? $"◯ {name}" : name, path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
-                    Game.SetDutyRecorderMenuSelection(agent, path, header);
+                if (editingRecording != i)
+                { 
+                    if (!isPlayable)
+                        ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
+                    if (ImGui.Selectable(autorenamed ? $"{displayName}###{path}{filename}" : filename[..filename.LastIndexOf('.')], path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
+                        Game.SetDutyRecorderMenuSelection(agent, path, header);
+                    if (!isPlayable)
+                        ImGui.PopStyleColor();
 
-                if (!isPlayable)
-                    ImGui.PopStyleColor();
-
-                if (ImGui.BeginPopupContextItem())
-                {
-                    for (byte j = 0; j < 3; j++)
+                    if (ImGui.BeginPopupContextItem())
                     {
-                        if (ImGui.Selectable($"Copy to slot #{j + 1}"))
-                            Game.CopyRecordingIntoSlot(agent, file, header, j);
+                        for (byte j = 0; j < 3; j++)
+                        {
+                            if (ImGui.Selectable($"Copy to slot #{j + 1}"))
+                                Game.CopyRecordingIntoSlot(agent, file, header, j);
+                        }
+
+                        if (ImGui.Selectable("Delete"))
+                            Game.DeleteRecording(file);
+
+                        ImGui.EndPopup();
                     }
 
-                    if (ImGui.Selectable("Delete"))
-                        Game.DeleteRecording(file);
+                    if (!ImGui.IsItemHovered() || !ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) continue;
 
-                    ImGui.EndPopup();
+                    editingRecording = i;
+                    editingName = autorenamed ? displayName : filename[..filename.LastIndexOf('.')];
                 }
+                else
+                {
+                    ImGui.InputText("##SetName", ref editingName, 64, ImGuiInputTextFlags.AutoSelectAll);
 
-                if (!ImGui.IsItemHovered() || !ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) continue;
+                    if (ImGui.IsWindowFocused() && !ImGui.IsAnyItemActive())
+                        ImGui.SetKeyboardFocusHere(-1);
 
-                editingRecording = i;
-                editingName = name[..name.LastIndexOf('.')];
+                    if (!ImGui.IsItemDeactivated()) continue;
+
+                    editingRecording = -1;
+
+                    if (ImGui.IsItemDeactivatedAfterEdit())
+                        Game.RenameRecording(file, editingName);
+                }
             }
-            else
-            {
-                ImGui.InputText("##SetName", ref editingName, 64, ImGuiInputTextFlags.AutoSelectAll);
-
-                if (ImGui.IsWindowFocused() && !ImGui.IsAnyItemActive())
-                    ImGui.SetKeyboardFocusHere(-1);
-
-                if (!ImGui.IsItemDeactivated()) continue;
-
-                editingRecording = -1;
-
-                if (ImGui.IsItemDeactivatedAfterEdit())
-                    Game.RenameRecording(file, editingName);
-            }
+            ImGui.EndTable();
         }
         ImGui.EndChild();
     }

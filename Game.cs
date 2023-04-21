@@ -13,6 +13,7 @@ using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using ImGuiNET;
 
 namespace ARealmRecorded;
 
@@ -563,7 +564,7 @@ public unsafe class Game
                     let header = ReadReplayHeader(file.FullName)
                     where header is { IsValid: true }
                     select (file, header.Value)
-                ).OrderByDescending(t => t.Value.IsPlayable).ThenBy(t => t.file.Name).ToList();
+                ).OrderByDescending(t => t.Value.IsPlayable).ThenByDescending(t => t.file.CreationTime).ToList();
 
             replayList = list;
         }
@@ -573,6 +574,32 @@ public unsafe class Game
         }
 
         return replayList;
+    }
+
+    public static void SortReplayList(ImGuiTableSortSpecsPtr sortspecs)
+    {
+        if (sortspecs.Specs.ColumnIndex == 0) // sort by date
+        {
+            if (sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending)
+            {
+                replayList = ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.CreationTime).ToList();
+            }
+            else
+            {
+                replayList = Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.CreationTime).ToList();
+            }
+        }
+        else // sort by name
+        {
+            if (sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending)
+            {
+                replayList = Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.Name).ToList();
+            }
+            else
+            {
+                replayList = Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.Name).ToList();
+            }
+        }
     }
 
     public static void RenameRecording(FileInfo file, string name)
@@ -594,7 +621,7 @@ public unsafe class Game
             var fileName = GetReplaySlotName(currentRecordingSlot);
             var (file, _) = GetReplayList().First(t => t.Item1.Name == fileName);
 
-            var name = $"{bannedFolderCharacters.Replace(ffxivReplay->contentTitle.ToString(), string.Empty)} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
+            var name = $"{bannedFolderCharacters.Replace(ffxivReplay->contentTitle.ToString(), string.Empty)}@{DateTime.Now:yyyy.MM.dd HH.mm.ss}";
             file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
 
             var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
