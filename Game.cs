@@ -21,7 +21,8 @@ public unsafe class Game
     private static readonly string autoRenamedFolder = Path.Combine(replayFolder, "autorenamed");
     private static readonly string deletedFolder = Path.Combine(replayFolder, "deleted");
     private static Structures.FFXIVReplay.ReplayFile* loadedReplay = null;
-    public static string lastSelectedReplay;
+
+    public static string LastSelectedReplay { get; private set; }
     private static Structures.FFXIVReplay.Header lastSelectedHeader;
 
     private static int quickLoadChapter = -1;
@@ -132,7 +133,7 @@ public unsafe class Game
         }
         else
         {
-            lastSelectedReplay = null;
+            LastSelectedReplay = null;
         }
 
         var ret = RequestPlaybackHook.Original(ffxivReplay, slot);
@@ -153,10 +154,10 @@ public unsafe class Game
 
         UnloadReplay();
 
-        if (string.IsNullOrEmpty(lastSelectedReplay))
+        if (string.IsNullOrEmpty(LastSelectedReplay))
             LoadReplay(ffxivReplay->currentReplaySlot);
         else
-            LoadReplay(lastSelectedReplay);
+            LoadReplay(LastSelectedReplay);
     }
 
     [Signature("E8 ?? ?? ?? ?? F6 83 ?? ?? ?? ?? 04 74 38 F6 83 ?? ?? ?? ?? 01", DetourName = "PlaybackUpdateDetour")]
@@ -658,7 +659,7 @@ public unsafe class Game
     public static void SetDutyRecorderMenuSelection(nint agent, string path, Structures.FFXIVReplay.Header header)
     {
         header.localCID = DalamudApi.ClientState.LocalContentId;
-        lastSelectedReplay = path;
+        LastSelectedReplay = path;
         lastSelectedHeader = header;
         var prevHeader = ffxivReplay->savedReplayHeaders[0];
         ffxivReplay->savedReplayHeaders[0] = header;

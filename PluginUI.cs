@@ -93,7 +93,7 @@ public static unsafe class PluginUI
 #if DEBUG
         ImGui.SameLine();
         if (ImGui.Button(FontAwesomeIcon.ExclamationTriangle.ToIconString()))
-            Game.ReadPackets(Game.lastSelectedReplay);
+            Game.ReadPackets(Game.LastSelectedReplay);
 #endif
         ImGui.PopFont();
 
@@ -152,7 +152,7 @@ public static unsafe class PluginUI
             {
                 if (!isPlayable)
                     ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
-                if (ImGui.Selectable(autoRenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100, ImGuiSelectableFlags.SpanAllColumns))
+                if (ImGui.Selectable(autoRenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.LastSelectedReplay && *(byte*)(agent + 0x2C) == 100, ImGuiSelectableFlags.SpanAllColumns))
                     Game.SetDutyRecorderMenuSelection(agent, path, header);
                 if (!isPlayable)
                     ImGui.PopStyleColor();
