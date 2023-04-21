@@ -417,6 +417,8 @@ public unsafe class Game
 
     public static void FixNextReplaySaveSlot()
     {
+        if (ARealmRecorded.Config.MaxAutoRenamedReplays <= 0 && !ffxivReplay->savedReplayHeaders[ffxivReplay->nextReplaySaveSlot].IsLocked) return;
+
         for (byte i = 0; i < 3; i++)
         {
             if (i != 2)
@@ -560,9 +562,14 @@ public unsafe class Game
 
             var renamedDirectory = new DirectoryInfo(autoRenamedFolder);
             if (!renamedDirectory.Exists)
-                renamedDirectory.Create();
+            {
+                if (ARealmRecorded.Config.MaxAutoRenamedReplays > 0)
+                    renamedDirectory.Create();
+                else
+                    renamedDirectory = null;
+            }
 
-            var list = (from file in directory.GetFiles().Concat(renamedDirectory.GetFiles())
+            var list = (from file in directory.GetFiles().Concat(renamedDirectory?.GetFiles() ?? Array.Empty<FileInfo>())
                     where file.Extension == ".dat"
                     let header = ReadReplayHeader(file.FullName)
                     where header is { IsValid: true }
@@ -593,6 +600,12 @@ public unsafe class Game
 
     public static void AutoRenameRecording()
     {
+        if (ARealmRecorded.Config.MaxAutoRenamedReplays <= 0)
+        {
+            GetReplayList();
+            return;
+        }
+
         try
         {
             var fileName = GetReplaySlotName(currentRecordingSlot);
@@ -602,9 +615,9 @@ public unsafe class Game
             file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
 
             var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
-            while (renamedFiles.Count > 30)
+            while (renamedFiles.Count > ARealmRecorded.Config.MaxAutoRenamedReplays)
             {
-                DeleteRecording(renamedFiles.OrderBy(f => f.CreationTime).First(), false);
+                DeleteRecording(renamedFiles.OrderBy(f => f.CreationTime).First());
                 renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
             }
 
@@ -617,32 +630,35 @@ public unsafe class Game
         }
     }
 
-    public static void DeleteRecording(FileInfo file, bool printChat)
+    public static void DeleteRecording(FileInfo file)
     {
         try
         {
-            var deletedDirectory = new DirectoryInfo(deletedFolder);
-            if (!deletedDirectory.Exists)
-                deletedDirectory.Create();
-
-            file.MoveTo(Path.Combine(deletedFolder, file.Name), true);
-
-            var deletedFiles = deletedDirectory.GetFiles().Where(f => f.Extension == ".dat").ToList();
-            while (deletedFiles.Count > 10)
+            if (ARealmRecorded.Config.MaxDeletedReplays > 0)
             {
-                deletedFiles.OrderBy(f => f.CreationTime).First().Delete();
-                deletedFiles = deletedDirectory.GetFiles().Where(f => f.Extension == ".dat").ToList();
+                var deletedDirectory = new DirectoryInfo(deletedFolder);
+                if (!deletedDirectory.Exists)
+                    deletedDirectory.Create();
+
+                file.MoveTo(Path.Combine(deletedFolder, file.Name), true);
+
+                var deletedFiles = deletedDirectory.GetFiles().Where(f => f.Extension == ".dat").ToList();
+                while (deletedFiles.Count > ARealmRecorded.Config.MaxDeletedReplays)
+                {
+                    deletedFiles.OrderBy(f => f.CreationTime).First().Delete();
+                    deletedFiles = deletedDirectory.GetFiles().Where(f => f.Extension == ".dat").ToList();
+                }
+            }
+            else
+            {
+                file.Delete();
             }
 
             GetReplayList();
-
-            if (printChat)
-                ARealmRecorded.PrintEcho("Successfully moved the recording to the deleted folder!");
         }
         catch (Exception e)
         {
-            if (printChat)
-                ARealmRecorded.PrintError($"Failed to delete recording\n{e}");
+            ARealmRecorded.PrintError($"Failed to delete recording\n{e}");
         }
     }
 
