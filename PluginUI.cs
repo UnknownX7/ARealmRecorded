@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface;
-using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
 
@@ -27,26 +29,24 @@ public static unsafe class PluginUI
     private static float lastSeek = 0;
     private static readonly Stopwatch lastSeekChange = new();
 
-    private static unsafe uint GetUIWidth()
+    private static readonly Regex displayNameRegex = new("(.+)[ _]\\d{4}\\.");
+
+    private static uint GetUIWidth()
     {
-        RaptureAtkUnitManager* manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
+        var manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
         if (manager == null) return 200;
 
-        AtkUnitBase* unit = manager->GetAddonByName("ContentsReplayPlayer");
-        if (unit == null) return 200;
-
-        return (uint)(unit->RootNode->Width * unit->RootNode->ScaleX);
+        var unit = manager->GetAddonByName("ContentsReplayPlayer");
+        return unit == null ? 200 : (uint)(unit->RootNode->Width * unit->RootNode->ScaleX);
     }
 
-    private static unsafe float GetGameUIScale()
+    private static float GetGameUIScale()
     {
-        RaptureAtkUnitManager* manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
+        var manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
         if (manager == null) return 1.0f;
 
-        AtkUnitBase* unit = manager->GetAddonByName("ContentsReplayPlayer");
-        if (unit == null) return 1.0f;
-
-        return unit->GetGlobalUIScale();
+        var unit = manager->GetAddonByName("ContentsReplayPlayer");
+        return unit == null ? 1.0f : unit->GetGlobalUIScale();
     }
 
     public static void Draw()
@@ -94,81 +94,99 @@ public static unsafe class PluginUI
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Enables the game's recording icon next to the world / time information (Server info bar).");
 
-        ImGui.BeginChild("Recordings List", ImGui.GetContentRegionAvail(), true);
-        if (ImGui.BeginTable("Recordings Table", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Sortable))
+        DrawRecordingsTable(agent);
+    }
+
+    public static void DrawRecordingsTable(nint agent)
+    {
+        if (!ImGui.BeginTable("RecordingsTable", 2, ImGuiTableFlags.Sortable | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.BordersOuter | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.ScrollY)) return;
+
+        ImGui.TableSetupScrollFreeze(0, 1);
+        ImGui.TableSetupColumn("Date", ImGuiTableColumnFlags.PreferSortDescending);
+        ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableHeadersRow();
+
+        var sortspecs = ImGui.TableGetSortSpecs();
+        if (sortspecs.SpecsDirty || ImGui.IsWindowAppearing())
         {
-            ImGui.TableSetupColumn("Date", ImGuiTableColumnFlags.DefaultSort);
-            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableHeadersRow();
-
-            if (ImGui.TableGetSortSpecs().SpecsDirty)
+            if (sortspecs.Specs.ColumnIndex == 0) // Date
             {
-                var sortspecs = ImGui.TableGetSortSpecs();
-                Game.SortReplayList(sortspecs);
-                sortspecs.SpecsDirty = false;
+                Game.ReplayList = sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending
+                    ? Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.CreationTime).ToList()
+                    : Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.CreationTime).ToList();
             }
-
-            for (int i = 0; i < Game.ReplayList.Count; i++)
+            else // Name
             {
-                var (file, header) = Game.ReplayList[i];
-                var creationTime = file.CreationTime;
-                var path = file.FullName;
-                var filename = file.Name;
-                var displayName = file.Name.Substring(0, file.Name.IndexOf('@') > 0 ? file.Name.IndexOf('@') : file.Name.Length);
-                var isPlayable = header.IsPlayable;
-                var autorenamed = file.Directory?.Name == "autorenamed";
+                Game.ReplayList = sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending
+                    ? Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.Name).ToList()
+                    : Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.Name).ToList();
+            }
+            sortspecs.SpecsDirty = false;
+        }
 
-                ImGui.TableNextRow();
-                ImGui.TableNextColumn();
-                ImGui.Text(creationTime.ToString("yyyy.MM.dd HH:mm:ss"));
-                ImGui.TableNextColumn();
+        for (int i = 0; i < Game.ReplayList.Count; i++)
+        {
+            var (file, header) = Game.ReplayList[i];
+            var path = file.FullName;
+            var fileName = file.Name;
+            var displayName = displayNameRegex.Match(fileName) is { Success: true } match ? match.Groups[1].Value : fileName[..fileName.LastIndexOf('.')];
+            var isPlayable = header.IsPlayable;
+            var autorenamed = file.Directory?.Name == "autorenamed";
 
-                if (editingRecording != i)
-                { 
-                    if (!isPlayable)
-                        ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
-                    if (ImGui.Selectable(autorenamed ? $"{displayName}###{path}{filename}" : filename[..filename.LastIndexOf('.')], path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100))
-                        Game.SetDutyRecorderMenuSelection(agent, path, header);
-                    if (!isPlayable)
-                        ImGui.PopStyleColor();
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            if (!isPlayable)
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
+            ImGui.TextUnformatted(file.CreationTime.ToString(CultureInfo.CurrentCulture));
+            if (!isPlayable)
+                ImGui.PopStyleColor();
+            ImGui.TableNextColumn();
 
-                    if (ImGui.BeginPopupContextItem())
+            if (editingRecording != i)
+            {
+                if (!isPlayable)
+                    ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
+                if (ImGui.Selectable(autorenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.lastSelectedReplay && *(byte*)(agent + 0x2C) == 100, ImGuiSelectableFlags.SpanAllColumns))
+                    Game.SetDutyRecorderMenuSelection(agent, path, header);
+                if (!isPlayable)
+                    ImGui.PopStyleColor();
+
+                if (ImGui.BeginPopupContextItem())
+                {
+                    for (byte j = 0; j < 3; j++)
                     {
-                        for (byte j = 0; j < 3; j++)
-                        {
-                            if (ImGui.Selectable($"Copy to slot #{j + 1}"))
-                                Game.CopyRecordingIntoSlot(agent, file, header, j);
-                        }
-
-                        if (ImGui.Selectable("Delete"))
-                            Game.DeleteRecording(file);
-
-                        ImGui.EndPopup();
+                        if (ImGui.Selectable($"Copy to slot #{j + 1}"))
+                            Game.CopyRecordingIntoSlot(agent, file, header, j);
                     }
 
-                    if (!ImGui.IsItemHovered() || !ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) continue;
+                    if (ImGui.Selectable("Delete"))
+                        Game.DeleteRecording(file);
 
-                    editingRecording = i;
-                    editingName = autorenamed ? displayName : filename[..filename.LastIndexOf('.')];
+                    ImGui.EndPopup();
                 }
-                else
-                {
-                    ImGui.InputText("##SetName", ref editingName, 64, ImGuiInputTextFlags.AutoSelectAll);
 
-                    if (ImGui.IsWindowFocused() && !ImGui.IsAnyItemActive())
-                        ImGui.SetKeyboardFocusHere(-1);
+                if (!ImGui.IsItemHovered() || !ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) continue;
 
-                    if (!ImGui.IsItemDeactivated()) continue;
-
-                    editingRecording = -1;
-
-                    if (ImGui.IsItemDeactivatedAfterEdit())
-                        Game.RenameRecording(file, editingName);
-                }
+                editingRecording = i;
+                editingName = fileName[..fileName.LastIndexOf('.')];
             }
-            ImGui.EndTable();
+            else
+            {
+                ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+                ImGui.InputText("##SetName", ref editingName, 64, ImGuiInputTextFlags.AutoSelectAll);
+
+                if (ImGui.IsWindowFocused() && !ImGui.IsAnyItemActive())
+                    ImGui.SetKeyboardFocusHere(-1);
+
+                if (!ImGui.IsItemDeactivated()) continue;
+
+                editingRecording = -1;
+
+                if (ImGui.IsItemDeactivatedAfterEdit())
+                    Game.RenameRecording(file, editingName);
+            }
         }
-        ImGui.EndChild();
+        ImGui.EndTable();
     }
 
     public static void DrawExpandedPlaybackControls()
@@ -229,7 +247,7 @@ public static unsafe class PluginUI
         ImGui.PopFont();
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Enters idle camera on the current focus target.");
-        
+
         ImGui.SameLine();
         var v = Game.IsWaymarkVisible;
         ImGui.PushFont(UiBuilder.IconFont);
