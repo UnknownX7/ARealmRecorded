@@ -11,7 +11,6 @@ using Dalamud.Logging;
 using Dalamud.Memory;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
-using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 
 namespace ARealmRecorded;
@@ -671,9 +670,11 @@ public unsafe class Game
     public static void CopyRecordingIntoSlot(nint agent, FileInfo file, Structures.FFXIVReplay.Header header, byte slot)
     {
         if (slot > 2) return;
+
         try
         {
-            file.CopyTo(Path.Combine(file.DirectoryName!, GetReplaySlotName(slot)), true);
+            file.CopyTo(Path.Combine(replayFolder, GetReplaySlotName(slot)), true);
+            header.localCID = DalamudApi.ClientState.LocalContentId;
             ffxivReplay->savedReplayHeaders[slot] = header;
             SetDutyRecorderMenuSelection(agent, slot);
             GetReplayList();
