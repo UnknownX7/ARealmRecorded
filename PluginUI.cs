@@ -26,30 +26,10 @@ public static unsafe class PluginUI
     private static bool showReplaySettings = false;
     private static bool showDebug = false;
 
-    private static uint savedMS = 0;
-
     private static float lastSeek = 0;
     private static readonly Stopwatch lastSeekChange = new();
 
     private static readonly Regex displayNameRegex = new("(.+)[ _]\\d{4}\\.");
-
-    private static uint GetUIWidth()
-    {
-        var manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
-        if (manager == null) return 200;
-
-        var unit = manager->GetAddonByName("ContentsReplayPlayer");
-        return unit == null ? 200 : (uint)(unit->RootNode->Width * unit->RootNode->ScaleX);
-    }
-
-    private static float GetGameUIScale()
-    {
-        var manager = AtkStage.GetSingleton()->RaptureAtkUnitManager;
-        if (manager == null) return 1.0f;
-
-        var unit = manager->GetAddonByName("ContentsReplayPlayer");
-        return unit == null ? 1.0f : unit->GetGlobalUIScale();
-    }
 
     public static void Draw()
     {
@@ -234,22 +214,20 @@ public static unsafe class PluginUI
         if (!loadedPlayback)
         {
             if (Game.ffxivReplay->u0x6F8 != 0)
-            {
                 loadingPlayback = true;
-            }
             else if (loadingPlayback && Game.ffxivReplay->u0x6F8 == 0)
-            {
                 loadedPlayback = true;
-                savedMS = 0;
-            }
             return;
         }
 
         var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplayPlayer", 1);
         if (addon == null) return;
 
+        var addonW = addon->RootNode->GetWidth() * addon->Scale;
+        var addonPadding = addon->Scale * 8;
         ImGuiHelpers.ForceNextWindowMainViewport();
-        ImGui.SetNextWindowPos(new(addon->X + (8 * GetGameUIScale()), addon->Y), ImGuiCond.Always, Vector2.UnitY);
+        ImGui.SetNextWindowPos(new(addon->X + addonPadding, addon->Y + addonPadding), ImGuiCond.Always, Vector2.UnitY);
+        ImGui.SetNextWindowSize(new Vector2(addonW - addonPadding * 2, 0));
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
         if (showReplaySettings && !Game.IsLoadingChapter)
@@ -324,47 +302,44 @@ public static unsafe class PluginUI
                 if (ImGui.Button("Unstuck") && segment != null)
                     Game.ffxivReplay->overallDataOffset += segment->Length;
             }
-
         }
 
-        var slider_width = GetUIWidth() - (2 * ImGui.CalcTextSize("Speed").X);
-        ImGui.SetNextItemWidth(slider_width);
-        var start_ms = (float)Game.ffxivReplay->startingMS / 1000.0f;
-        var end_ms = (float)Game.ffxivReplay->replayHeader.ms / 1000.0f;
-        var seek_min = Game.ffxivReplay->seek - start_ms;
-        var hours = MathF.Floor(seek_min / 3600.0f).ToString().PadLeft(2, '0');
-        var minutes = MathF.Floor((seek_min % 3600.0f) / 60.0f).ToString().PadLeft(2, '0');
-        var seconds = MathF.Truncate(seek_min % 60.0f).ToString().PadLeft(2, '0');
-        if (ImGui.SliderFloat("Time", ref seek_min, 0.0f, end_ms, $"{hours}:{minutes}:{seconds}", ImGuiSliderFlags.NoInput)) {
-            var time = seek_min + start_ms;
-            var time_ms = (uint)(time * 1000.0f);
-            var seg = Game.FindNextDataSegment(time_ms, out var offset);
-            if (seg != null) {
-                Game.ffxivReplay->overallDataOffset = offset;
-                Game.ffxivReplay->seek = time;
-            }
-        }
+        ImGui.BeginDisabled(Game.IsLoadingChapter);
 
-        if (ImGui.IsItemHovered()) {
-            var mouse_pos = ImGui.GetMousePos().X;
-            var slider_pos = ImGui.GetItemRectMin().X;
-            var completion = (mouse_pos - slider_pos) / slider_width;
-            if (completion >= 0.0f && completion <= 1.0f)
+        const int restartDelayMS = 12_000;
+        var sliderWidth = ImGui.GetContentRegionAvail().X;
+        var startMS = Game.ffxivReplay->chapters[0]->ms;
+        var seekMS = Math.Max((int)(seek * 1000), (int)startMS);
+        var lastStartChapterMS = Game.ffxivReplay->chapters[Game.FindPreviousChapterType(2)]->ms;
+        var nextStartChapterMS = Game.ffxivReplay->chapters[Game.FindNextChapterType(2)]->ms;
+        if (lastStartChapterMS >= nextStartChapterMS)
+            nextStartChapterMS = Game.ffxivReplay->replayHeader.ms + startMS;
+        var currentTime = new TimeSpan(0, 0, 0, 0, (int)(seekMS - lastStartChapterMS));
+        ImGui.SetNextItemWidth(sliderWidth);
+        ImGui.PushStyleVar(ImGuiStyleVar.GrabMinSize, 4);
+        ImGui.SliderInt($"##Time{lastStartChapterMS}", ref seekMS, (int)lastStartChapterMS, (int)nextStartChapterMS - restartDelayMS, currentTime.ToString("hh':'mm':'ss"), ImGuiSliderFlags.NoInput);
+        ImGui.PopStyleVar();
+
+        if (ImGui.IsItemHovered())
+        {
+            var hoveredWidth = ImGui.GetMousePos().X - ImGui.GetItemRectMin().X;
+            var hoveredPercent = hoveredWidth / sliderWidth;
+            if (hoveredPercent is >= 0.0f and <= 1.0f)
             {
-                var preview_time = (completion * end_ms);
-                var preview_hours = MathF.Floor(preview_time / 3600.0f).ToString().PadLeft(2, '0');
-                var preview_minutes = MathF.Floor((preview_time % 3600.0f) / 60.0f).ToString().PadLeft(2, '0');
-                var preview_seconds = MathF.Truncate(preview_time % 60.0f).ToString().PadLeft(2, '0');
-                ImGui.BeginTooltip();
-                ImGui.Text($"{preview_hours}:{preview_minutes}:{preview_seconds}");
-                ImGui.Text(completion.ToString());
-                ImGui.EndTooltip();
+                var hoveredTime = new TimeSpan(0, 0, 0, 0, (int)Math.Min(Math.Max((int)((nextStartChapterMS - lastStartChapterMS - restartDelayMS) * hoveredPercent), 0), nextStartChapterMS - lastStartChapterMS));
+                ImGui.SetTooltip(hoveredTime.ToString("hh':'mm':'ss"));
+                if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+                    Game.SeekToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
+                else if (ARealmRecorded.Config.EnableJumpToTime && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+                    Game.JumpToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
             }
         }
 
-        ImGui.SetNextItemWidth(slider_width);
+        ImGui.EndDisabled();
+
+        ImGui.SetNextItemWidth(sliderWidth);
         var speed = Game.ffxivReplay->speed;
-        if (ImGui.SliderFloat("Speed", ref speed, 0.05f, 10.0f, "%.2f", ImGuiSliderFlags.NoInput))
+        if (ImGui.SliderFloat("##Speed", ref speed, 0.05f, 10.0f, "%.2fx", ImGuiSliderFlags.NoInput))
             Game.ffxivReplay->speed = speed;
 
         for (int i = 0; i < presetSpeeds.Length; i++)
@@ -377,16 +352,6 @@ public static unsafe class PluginUI
                 Game.ffxivReplay->speed = s == Game.ffxivReplay->speed ? 1 : s;
         }
 
-        if (ImGui.Button("Save Time"))
-            savedMS = (uint)(Game.ffxivReplay->seek * 1000 - 3500);
-
-        if (savedMS > 0)
-        {
-            ImGui.SameLine();
-            if (ImGui.Button("Jump to Time"))
-                Game.SeekToTime(savedMS);
-        }
-
         ImGui.End();
     }
 
@@ -394,7 +359,15 @@ public static unsafe class PluginUI
     {
         var save = false;
 
-        save |= ImGui.Checkbox("Quick Chapter Load", ref ARealmRecorded.Config.EnableQuickLoad);
+        save |= ImGui.Checkbox("Enable Quick Chapter Load", ref ARealmRecorded.Config.EnableQuickLoad);
+
+        save |= ImGui.Checkbox("Enable Right Click to Jump to Time", ref ARealmRecorded.Config.EnableJumpToTime);
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Doing this WILL result in playback not appearing correctly!");
+        ImGui.SameLine();
+        ImGui.PushFont(UiBuilder.IconFont);
+        ImGui.TextUnformatted(FontAwesomeIcon.ExclamationTriangle.ToIconString());
+        ImGui.PopFont();
 
         if (ARealmRecorded.Config.EnableQuickLoad)
         {
@@ -408,13 +381,14 @@ public static unsafe class PluginUI
             ARealmRecorded.Config.Save();
     }
 
+    [Conditional("DEBUG")]
     private static void DrawDebug()
     {
         var segment = Game.GetReplayDataSegmentDetour(Game.ffxivReplay);
         if (segment == null) return;
 
         ImGui.TextUnformatted($"Offset: {Game.ffxivReplay->overallDataOffset + sizeof(Structures.FFXIVReplay.Header) + sizeof(Structures.FFXIVReplay.ChapterArray):X}");
-        ImGui.TextUnformatted($"Op-code: {segment->opcode:X}");
+        ImGui.TextUnformatted($"Opcode: {segment->opcode:X}");
         ImGui.TextUnformatted($"Data Length: {segment->dataLength}");
         ImGui.TextUnformatted($"Time: {segment->ms / 1000f}");
         ImGui.TextUnformatted($"Object ID: {segment->objectID:X}");

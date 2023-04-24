@@ -10,6 +10,7 @@ public class Configuration : IPluginConfiguration
     public int MaxAutoRenamedReplays = 30;
     public int MaxDeletedReplays = 10;
     public bool EnableQuickLoad = true;
+    public bool EnableJumpToTime = false;
     public float MaxSeekDelta = 100;
 
     public void Initialize() { }

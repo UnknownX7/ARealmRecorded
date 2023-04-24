@@ -432,12 +432,23 @@ public unsafe class Game
         }
     }
 
-    public static byte FindNextChapterType(byte startChapter, byte type)
+    public static byte FindPreviousChapterType(byte chapter, byte type)
     {
-        for (byte i = (byte)(startChapter + 1); i < ffxivReplay->chapters.length; i++)
+        for (byte i = chapter; i > 0; i--)
             if (ffxivReplay->chapters[i]->type == type) return i;
         return 0;
     }
+
+    public static byte FindPreviousChapterType(byte type) => FindPreviousChapterType(GetCurrentChapter(), type);
+
+    public static byte FindNextChapterType(byte chapter, byte type)
+    {
+        for (byte i = (byte)(chapter + 1); i < ffxivReplay->chapters.length; i++)
+            if (ffxivReplay->chapters[i]->type == type) return i;
+        return 0;
+    }
+
+    public static byte FindNextChapterType(byte type) => FindNextChapterType(GetCurrentChapter(), type);
 
     public static byte GetPreviousStartChapter(byte chapter)
     {
@@ -453,12 +464,16 @@ public unsafe class Game
         return 0;
     }
 
+    public static byte GetPreviousStartChapter() => GetPreviousStartChapter(GetCurrentChapter());
+
     public static byte FindPreviousChapterFromTime(uint ms)
     {
         for (byte i = (byte)(ffxivReplay->chapters.length - 1); i > 0; i--)
             if (ffxivReplay->chapters[i]->ms <= ms) return i;
         return 0;
     }
+
+    public static byte GetCurrentChapter() => FindPreviousChapterFromTime((uint)(ffxivReplay->seek * 1000));
 
     public static Structures.FFXIVReplay.ReplayDataSegment* FindNextDataSegment(uint ms, out uint offset)
     {
@@ -507,7 +522,10 @@ public unsafe class Game
 
         seekingOffset = offset;
         forceFastForwardReplacer.Enable();
-        SetChapter(prevChapter);
+        if (ffxivReplay->seek * 1000 < segment->ms && prevChapter == GetCurrentChapter())
+            OnSetChapterHook.Original(ffxivReplay, prevChapter);
+        else
+            SetChapter(prevChapter);
     }
 
     public static void ReplaySection(byte from, byte to)
@@ -712,17 +730,11 @@ public unsafe class Game
         catch { }
     }
 
-    public static void ToggleWaymarks()
-    {
-        if ((*waymarkToggle & 2) != 0)
-            *waymarkToggle -= 2;
-        else
-            *waymarkToggle += 2;
-    }
+    public static void ToggleWaymarks() => *waymarkToggle ^= 2;
 
     public static void SetConditionFlag(ConditionFlag flag, bool b) => *(bool*)(DalamudApi.Condition.Address + (int)flag) = b;
 
-#if DEBUG
+    [Conditional("DEBUG")]
     public static void ReadPackets(string path)
     {
         var replay = ReadReplay(path);
@@ -753,7 +765,6 @@ public unsafe class Game
             PluginLog.Information($"[{opcode:X}] {count} ({opcodeLengths[opcode]})");
         PluginLog.Information("-------------------");
     }
-#endif
 
     // 48 89 5C 24 08 57 48 83 EC 20 33 FF 48 8B D9 89 39 48 89 79 08 ctor
     // E8 ?? ?? ?? ?? 48 8D 8B 48 0B 00 00 E8 ?? ?? ?? ?? 48 8D 8B 38 0B 00 00 dtor
