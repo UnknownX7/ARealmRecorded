@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
@@ -14,7 +14,7 @@ namespace ARealmRecorded;
 
 public static unsafe class PluginUI
 {
-    public static readonly float[] presetSpeeds = { 0.5f, 1, 2, 5, 10, 20, 60 };
+    public static readonly float[] presetSpeeds = { 0.5f, 1, 2, 5, 10, 20 };
 
     private static bool showPluginSettings = false;
     private static int editingReplay = -1;
@@ -315,7 +315,7 @@ public static unsafe class PluginUI
         if (lastStartChapterMS >= nextStartChapterMS)
             nextStartChapterMS = Game.ffxivReplay->replayHeader.ms + startMS;
         var currentTime = new TimeSpan(0, 0, 0, 0, (int)(seekMS - lastStartChapterMS));
-        ImGui.SetNextItemWidth(sliderWidth);
+        ImGui.PushItemWidth(sliderWidth);
         ImGui.PushStyleVar(ImGuiStyleVar.GrabMinSize, 4);
         ImGui.SliderInt($"##Time{lastStartChapterMS}", ref seekMS, (int)lastStartChapterMS, (int)nextStartChapterMS - restartDelayMS, currentTime.ToString("hh':'mm':'ss"), ImGuiSliderFlags.NoInput);
         ImGui.PopStyleVar();
@@ -337,10 +337,10 @@ public static unsafe class PluginUI
 
         ImGui.EndDisabled();
 
-        ImGui.SetNextItemWidth(sliderWidth);
         var speed = Game.ffxivReplay->speed;
-        if (ImGui.SliderFloat("##Speed", ref speed, 0.05f, 10.0f, "%.2fx", ImGuiSliderFlags.NoInput))
+        if (ImGui.SliderFloat("##Speed", ref speed, 0.05f, 10.0f, "%.2fx", ImGuiSliderFlags.AlwaysClamp))
             Game.ffxivReplay->speed = speed;
+        ImGui.PopItemWidth();
 
         for (int i = 0; i < presetSpeeds.Length; i++)
         {
@@ -351,6 +351,13 @@ public static unsafe class PluginUI
             if (ImGui.Button($"{s}x"))
                 Game.ffxivReplay->speed = s == Game.ffxivReplay->speed ? 1 : s;
         }
+
+        var customSpeed = ARealmRecorded.Config.CustomSpeedPreset;
+        ImGui.SameLine();
+        ImGui.Dummy(Vector2.Zero);
+        ImGui.SameLine();
+        if (ImGui.Button($"{customSpeed}x"))
+            Game.ffxivReplay->speed = customSpeed == Game.ffxivReplay->speed ? 1 : customSpeed;
 
         ImGui.End();
     }
@@ -371,11 +378,12 @@ public static unsafe class PluginUI
 
         if (ARealmRecorded.Config.EnableQuickLoad)
         {
-            ImGui.SetNextItemWidth(200);
             save |= ImGui.SliderFloat("Loading Speed", ref ARealmRecorded.Config.MaxSeekDelta, 100, 800, "%.f%%");
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("Can cause issues with some fights that contain arena changes.");
         }
+
+        save |= ImGui.SliderFloat("Speed Preset", ref ARealmRecorded.Config.CustomSpeedPreset, 0.05f, 60, "%.2fx", ImGuiSliderFlags.AlwaysClamp);
 
         if (save)
             ARealmRecorded.Config.Save();

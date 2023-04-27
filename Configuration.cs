@@ -12,6 +12,7 @@ public class Configuration : IPluginConfiguration
     public bool EnableQuickLoad = true;
     public bool EnableJumpToTime = false;
     public float MaxSeekDelta = 100;
+    public float CustomSpeedPreset = 30;
 
     public void Initialize() { }
 
