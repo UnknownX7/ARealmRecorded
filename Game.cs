@@ -581,7 +581,7 @@ public unsafe class Game
                     let replay = ReadReplayHeaderAndChapters(file.FullName)
                     where replay is { header.IsValid: true }
                     select (file, replay.Value)
-                ).OrderByDescending(t => t.Value.header.IsPlayable).ThenByDescending(t => t.file.CreationTime).ToList();
+                ).ToList();
 
             replayList = list;
         }

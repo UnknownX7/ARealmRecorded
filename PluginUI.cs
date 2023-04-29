@@ -16,6 +16,7 @@ public static unsafe class PluginUI
 {
     public static readonly float[] presetSpeeds = { 0.5f, 1, 2, 5, 10, 20 };
 
+    private static bool needSort = true;
     private static bool showPluginSettings = false;
     private static int editingReplay = -1;
     private static string editingName = string.Empty;
@@ -63,7 +64,10 @@ public static unsafe class PluginUI
 
         ImGui.PushFont(UiBuilder.IconFont);
         if (ImGui.Button(FontAwesomeIcon.SyncAlt.ToIconString()))
+        {
             Game.GetReplayList();
+            needSort = true;
+        }
         ImGui.SameLine();
         if (ImGui.Button(FontAwesomeIcon.FolderOpen.ToIconString()))
             Game.OpenReplayFolder();
@@ -100,7 +104,7 @@ public static unsafe class PluginUI
         ImGui.TableHeadersRow();
 
         var sortspecs = ImGui.TableGetSortSpecs();
-        if (sortspecs.SpecsDirty || ImGui.IsWindowAppearing())
+        if (sortspecs.SpecsDirty || needSort || ImGui.IsWindowAppearing())
         {
             if (sortspecs.Specs.ColumnIndex == 0)
             {
@@ -117,6 +121,7 @@ public static unsafe class PluginUI
                     : Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenByDescending(t => t.Item1.Name).ToList();
             }
             sortspecs.SpecsDirty = false;
+            needSort = false;
         }
 
         for (int i = 0; i < Game.ReplayList.Count; i++)
