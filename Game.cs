@@ -116,7 +116,7 @@ public unsafe class Game
         if (contentDirectorOffset > 0)
             ContentDirectorTimerUpdateHook?.Enable();
 
-        FlushRsvRsfBuffers(); // TODO: Look into potential issue with packets received from The Unending Journey being added to recordings
+        FlushRsvRsfBuffers(); // TODO: Look into potential issue with packets received from The Unending Journey being added to replays
     }
 
     private delegate byte RequestPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte slot);
@@ -336,9 +336,9 @@ public unsafe class Game
                 currentRecordingSlot = ffxivReplay->nextReplaySaveSlot;
                 break;
             case false when currentRecordingSlot >= 0:
-                AutoRenameRecording();
+                AutoRenameReplay();
                 currentRecordingSlot = -1;
-                SetSavedRecordingCIDs(DalamudApi.ClientState.LocalContentId);
+                SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
                 break;
         }
     }
@@ -593,7 +593,7 @@ public unsafe class Game
         return replayList;
     }
 
-    public static void RenameRecording(FileInfo file, string name)
+    public static void RenameReplay(FileInfo file, string name)
     {
         try
         {
@@ -605,7 +605,7 @@ public unsafe class Game
         }
     }
 
-    public static void AutoRenameRecording()
+    public static void AutoRenameReplay()
     {
         if (ARealmRecorded.Config.MaxAutoRenamedReplays <= 0)
         {
@@ -624,7 +624,7 @@ public unsafe class Game
             var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
             while (renamedFiles.Count > ARealmRecorded.Config.MaxAutoRenamedReplays)
             {
-                DeleteRecording(renamedFiles.OrderBy(f => f.CreationTime).First());
+                DeleteReplay(renamedFiles.OrderBy(f => f.CreationTime).First());
                 renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
             }
 
@@ -637,7 +637,7 @@ public unsafe class Game
         }
     }
 
-    public static void DeleteRecording(FileInfo file)
+    public static void DeleteReplay(FileInfo file)
     {
         try
         {
@@ -669,7 +669,7 @@ public unsafe class Game
         }
     }
 
-    public static void ArchiveRecordings()
+    public static void ArchiveReplays()
     {
         var archivableReplays = ReplayList.Where(t => !t.Item2.header.IsPlayable && t.Item1.Directory?.Name == "replay").ToList();
         if (archivableReplays.Count == 0) return;
@@ -745,7 +745,7 @@ public unsafe class Game
         *(byte*)(agent + 0x2C) = 100;
     }
 
-    public static void CopyRecordingIntoSlot(nint agent, FileInfo file, Structures.FFXIVReplay.Header header, byte slot)
+    public static void CopyReplayIntoSlot(nint agent, FileInfo file, Structures.FFXIVReplay.Header header, byte slot)
     {
         if (slot > 2) return;
 
@@ -763,7 +763,7 @@ public unsafe class Game
         }
     }
 
-    public static void SetSavedRecordingCIDs(ulong cID)
+    public static void SetSavedReplayCIDs(ulong cID)
     {
         if (ffxivReplay->savedReplayHeaders == null) return;
 
@@ -857,7 +857,7 @@ public unsafe class Game
 
         waymarkToggle += 0x48;
 
-        SetSavedRecordingCIDs(DalamudApi.ClientState.LocalContentId);
+        SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
 
         if (InPlayback && ffxivReplay->fileStream != nint.Zero && *(long*)ffxivReplay->fileStream == 0)
             LoadReplay(ARealmRecorded.Config.LastLoadedReplay);
@@ -880,14 +880,14 @@ public unsafe class Game
         DispatchPacketHook?.Dispose();
 
         if (ffxivReplay != null)
-            SetSavedRecordingCIDs(0);
+            SetSavedReplayCIDs(0);
 
         if (loadedReplay == null) return;
 
         if (InPlayback)
         {
             ffxivReplay->playbackControls |= 8; // Pause
-            ARealmRecorded.PrintError("Plugin was unloaded, playback will be broken if the plugin or recording is not reloaded.");
+            ARealmRecorded.PrintError("Plugin was unloaded, playback will be broken if the plugin or replay is not reloaded.");
         }
 
         Marshal.FreeHGlobal((nint)loadedReplay);
