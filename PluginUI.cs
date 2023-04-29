@@ -260,7 +260,6 @@ public static unsafe class PluginUI
     public static void DrawExpandedPlaybackControls()
     {
         if (DalamudApi.GameGui.GameUiHidden || DalamudApi.Condition[ConditionFlag.WatchingCutscene]) return;
-        //if (Game.ffxivReplay->selectedChapter != 64) return; // Apparently people don't like this :(
 
         if (!Game.InPlayback)
         {
@@ -271,6 +270,16 @@ public static unsafe class PluginUI
 
         if (!loadedPlayback)
         {
+            if (Game.ffxivReplay->seek != lastSeek)
+            {
+                lastSeek = Game.ffxivReplay->seek;
+                lastSeekChange.Restart();
+            }
+            else if (lastSeekChange.ElapsedMilliseconds >= 3_000)
+            {
+                loadedPlayback = true;
+            }
+
             if (Game.ffxivReplay->u0x6F8 != 0)
                 loadingPlayback = true;
             else if (loadingPlayback && Game.ffxivReplay->u0x6F8 == 0)
@@ -352,8 +361,7 @@ public static unsafe class PluginUI
                 lastSeek = seek;
                 lastSeekChange.Restart();
             }
-
-            if (lastSeekChange.ElapsedMilliseconds >= 3000)
+            else if (lastSeekChange.ElapsedMilliseconds >= 3_000)
             {
                 ImGui.SameLine();
                 var segment = Game.GetReplayDataSegmentDetour(Game.ffxivReplay);
