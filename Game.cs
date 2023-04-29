@@ -36,8 +36,8 @@ public unsafe class Game
 
     private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28, 29, 30 }; // 22 Event, 26 Eureka, 27 Carnivale
 
-    private static List<(FileInfo, Structures.FFXIVReplay.Header)> replayList;
-    public static List<(FileInfo, Structures.FFXIVReplay.Header)> ReplayList
+    private static List<(FileInfo, Structures.FFXIVReplay.ReplayFile)> replayList;
+    public static List<(FileInfo, Structures.FFXIVReplay.ReplayFile)> ReplayList
     {
         get => replayList ?? GetReplayList();
         set => replayList = value;
@@ -398,21 +398,21 @@ public unsafe class Game
         return (Structures.FFXIVReplay.ReplayFile*)ptr;
     }
 
-    public static Structures.FFXIVReplay.Header? ReadReplayHeader(string path)
+    public static Structures.FFXIVReplay.ReplayFile? ReadReplayHeaderAndChapters(string path)
     {
         try
         {
             using var fs = File.OpenRead(path);
-            var size = sizeof(Structures.FFXIVReplay.Header);
+            var size = sizeof(Structures.FFXIVReplay.Header) + sizeof(Structures.FFXIVReplay.ChapterArray);
             var bytes = new byte[size];
             if (fs.Read(bytes, 0, size) != size)
                 return null;
             fixed (byte* ptr = &bytes[0])
-                return *(Structures.FFXIVReplay.Header*)ptr;
+                return *(Structures.FFXIVReplay.ReplayFile*)ptr;
         }
         catch (Exception e)
         {
-            PluginLog.Error($"Failed to read replay header {path}\n{e}");
+            PluginLog.Error($"Failed to read replay header and chapters {path}\n{e}");
             return null;
         }
     }
@@ -561,7 +561,7 @@ public unsafe class Game
         ReplaySection(GetPreviousStartChapter((byte)quickLoadChapter), (byte)quickLoadChapter);
     }
 
-    public static List<(FileInfo, Structures.FFXIVReplay.Header)> GetReplayList()
+    public static List<(FileInfo, Structures.FFXIVReplay.ReplayFile)> GetReplayList()
     {
         try
         {
@@ -578,10 +578,10 @@ public unsafe class Game
 
             var list = (from file in directory.GetFiles().Concat(renamedDirectory?.GetFiles() ?? Array.Empty<FileInfo>())
                     where file.Extension == ".dat"
-                    let header = ReadReplayHeader(file.FullName)
-                    where header is { IsValid: true }
-                    select (file, header.Value)
-                ).OrderByDescending(t => t.Value.IsPlayable).ThenByDescending(t => t.file.CreationTime).ToList();
+                    let replay = ReadReplayHeaderAndChapters(file.FullName)
+                    where replay is { header.IsValid: true }
+                    select (file, replay.Value)
+                ).OrderByDescending(t => t.Value.header.IsPlayable).ThenByDescending(t => t.file.CreationTime).ToList();
 
             replayList = list;
         }
@@ -671,7 +671,7 @@ public unsafe class Game
 
     public static void ArchiveRecordings()
     {
-        var archivableReplays = ReplayList.Where(t => !t.Item2.IsPlayable && t.Item1.Directory?.Name == "replay").ToList();
+        var archivableReplays = ReplayList.Where(t => !t.Item2.header.IsPlayable && t.Item1.Directory?.Name == "replay").ToList();
         if (archivableReplays.Count == 0) return;
 
         var restoreBackup = true;

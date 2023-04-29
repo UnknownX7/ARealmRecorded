@@ -106,26 +106,26 @@ public static unsafe class PluginUI
             {
                 // Date
                 Game.ReplayList = sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending
-                    ? Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.CreationTime).ToList()
-                    : Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.CreationTime).ToList();
+                    ? Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenBy(t => t.Item1.CreationTime).ToList()
+                    : Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenByDescending(t => t.Item1.CreationTime).ToList();
             }
             else
             {
                 // Name
                 Game.ReplayList = sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending
-                    ? Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.Name).ToList()
-                    : Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.Name).ToList();
+                    ? Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenBy(t => t.Item1.Name).ToList()
+                    : Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenByDescending(t => t.Item1.Name).ToList();
             }
             sortspecs.SpecsDirty = false;
         }
 
         for (int i = 0; i < Game.ReplayList.Count; i++)
         {
-            var (file, header) = Game.ReplayList[i];
+            var (file, replay) = Game.ReplayList[i];
             var path = file.FullName;
             var fileName = file.Name;
             var displayName = displayNameRegex.Match(fileName) is { Success: true } match ? match.Groups[1].Value : fileName[..fileName.LastIndexOf('.')];
-            var isPlayable = header.IsPlayable;
+            var isPlayable = replay.header.IsPlayable;
             var autoRenamed = file.Directory?.Name == "autorenamed";
 
             ImGui.TableNextRow();
@@ -142,16 +142,60 @@ public static unsafe class PluginUI
                 if (!isPlayable)
                     ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
                 if (ImGui.Selectable(autoRenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.LastSelectedReplay && *(byte*)(agent + 0x2C) == 100, ImGuiSelectableFlags.SpanAllColumns))
-                    Game.SetDutyRecorderMenuSelection(agent, path, header);
+                    Game.SetDutyRecorderMenuSelection(agent, path, replay.header);
                 if (!isPlayable)
                     ImGui.PopStyleColor();
+
+                if (ImGui.IsItemHovered())
+                {
+                    // TODO: This could probably be a function on the chapter structure itself
+                    var pulls = 0;
+                    var longestPull = TimeSpan.Zero;
+                    for (int j = 0; j < replay.chapters.length; j++)
+                    {
+                        var chapter = replay.chapters[j];
+                        if (chapter->type != 2) continue;
+
+                        if (j < replay.chapters.length - 1)
+                        {
+                            var nextChapter = replay.chapters[j + 1];
+                            if (nextChapter->type == 1)
+                            {
+                                chapter = nextChapter;
+                                j++;
+                            }
+                        }
+
+                        var nextStartMS = replay.header.ms;
+                        for (int k = j + 1; k < replay.chapters.length; k++)
+                        {
+                            var nextStart = replay.chapters[k];
+                            if (nextStart->type != 2) continue;
+                            nextStartMS = nextStart->ms;
+                            break;
+                        }
+
+                        var ms = (int)(nextStartMS - chapter->ms);
+                        if (ms > 30_000)
+                            pulls++;
+
+                        var timeSpan = new TimeSpan(0, 0, 0, 0, ms);
+                        if (timeSpan > longestPull)
+                            longestPull = timeSpan;
+                    }
+
+                    var tooltip = $"Length: {new TimeSpan(0, 0, 0, 0, (int)replay.header.ms):hh':'mm':'ss}";
+                    if (longestPull > TimeSpan.Zero)
+                        tooltip += $"\nNumber of Pulls: {pulls}\nLongest Pull: {longestPull:hh':'mm':'ss}";
+                    ImGui.SetTooltip(tooltip);
+                }
 
                 if (ImGui.BeginPopupContextItem())
                 {
                     for (byte j = 0; j < 3; j++)
                     {
                         if (ImGui.Selectable($"Copy to slot #{j + 1}"))
-                            Game.CopyRecordingIntoSlot(agent, file, header, j);
+                            Game.CopyRecordingIntoSlot(agent, file, replay.header, j);
                     }
 
                     if (ImGui.Selectable("Delete"))
