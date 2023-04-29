@@ -73,7 +73,10 @@ public static unsafe class PluginUI
             Game.OpenReplayFolder();
         ImGui.SameLine();
         if (ImGui.Button(FontAwesomeIcon.FileArchive.ToIconString()))
+        {
             Game.ArchiveReplays();
+            needSort = true;
+        }
         ImGui.PopFont();
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Archive saved unplayable replays.");
@@ -199,12 +202,16 @@ public static unsafe class PluginUI
                 {
                     for (byte j = 0; j < 3; j++)
                     {
-                        if (ImGui.Selectable($"Copy to slot #{j + 1}"))
-                            Game.CopyReplayIntoSlot(agent, file, replay.header, j);
+                        if (!ImGui.Selectable($"Copy to slot #{j + 1}")) continue;
+                        Game.CopyReplayIntoSlot(agent, file, replay.header, j);
+                        needSort = true;
                     }
 
                     if (ImGui.Selectable("Delete"))
+                    {
                         Game.DeleteReplay(file);
+                        needSort = true;
+                    }
 
                     ImGui.EndPopup();
                 }
