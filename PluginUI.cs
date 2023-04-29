@@ -110,8 +110,8 @@ public static unsafe class PluginUI
             {
                 // Date
                 Game.ReplayList = sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending
-                    ? Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenBy(t => t.Item1.CreationTime).ToList()
-                    : Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenByDescending(t => t.Item1.CreationTime).ToList();
+                    ? Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenBy(t => t.Item2.header.timestamp).ToList()
+                    : Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenByDescending(t => t.Item2.header.timestamp).ToList();
             }
             else
             {
@@ -137,7 +137,7 @@ public static unsafe class PluginUI
             ImGui.TableNextColumn();
             if (!isPlayable)
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
-            ImGui.TextUnformatted(file.CreationTime.ToString(CultureInfo.CurrentCulture));
+            ImGui.TextUnformatted(DateTimeOffset.FromUnixTimeSeconds(replay.header.timestamp).LocalDateTime.ToString(CultureInfo.CurrentCulture));
             if (!isPlayable)
                 ImGui.PopStyleColor();
             ImGui.TableNextColumn();
