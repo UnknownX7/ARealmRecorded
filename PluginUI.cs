@@ -68,6 +68,13 @@ public static unsafe class PluginUI
         if (ImGui.Button(FontAwesomeIcon.FolderOpen.ToIconString()))
             Game.OpenReplayFolder();
         ImGui.SameLine();
+        if (ImGui.Button(FontAwesomeIcon.FileArchive.ToIconString()))
+            Game.ArchiveRecordings();
+        ImGui.PopFont();
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Archive saved unplayable replays.");
+        ImGui.PushFont(UiBuilder.IconFont);
+        ImGui.SameLine();
         if (ImGui.Button(FontAwesomeIcon.Cog.ToIconString()))
             showPluginSettings ^= true;
 #if DEBUG
@@ -95,14 +102,16 @@ public static unsafe class PluginUI
         var sortspecs = ImGui.TableGetSortSpecs();
         if (sortspecs.SpecsDirty || ImGui.IsWindowAppearing())
         {
-            if (sortspecs.Specs.ColumnIndex == 0) // Date
+            if (sortspecs.Specs.ColumnIndex == 0)
             {
+                // Date
                 Game.ReplayList = sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending
                     ? Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.CreationTime).ToList()
                     : Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.CreationTime).ToList();
             }
-            else // Name
+            else
             {
+                // Name
                 Game.ReplayList = sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending
                     ? Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenBy(t => t.Item1.Name).ToList()
                     : Game.ReplayList.OrderByDescending(t => t.Item2.IsPlayable).ThenByDescending(t => t.Item1.Name).ToList();

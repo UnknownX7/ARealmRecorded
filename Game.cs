@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -19,6 +20,7 @@ public unsafe class Game
 {
     private static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPath, "replay");
     private static readonly string autoRenamedFolder = Path.Combine(replayFolder, "autorenamed");
+    private static readonly string archiveZip = Path.Combine(replayFolder, "archive.zip");
     private static readonly string deletedFolder = Path.Combine(replayFolder, "deleted");
     private static Structures.FFXIVReplay.ReplayFile* loadedReplay = null;
 
@@ -599,7 +601,7 @@ public unsafe class Game
         }
         catch (Exception e)
         {
-            ARealmRecorded.PrintError($"Failed to rename recording\n{e}");
+            ARealmRecorded.PrintError($"Failed to rename replay\n{e}");
         }
     }
 
@@ -631,7 +633,7 @@ public unsafe class Game
         }
         catch (Exception e)
         {
-            ARealmRecorded.PrintError($"Failed to rename recording\n{e}");
+            ARealmRecorded.PrintError($"Failed to rename replay\n{e}");
         }
     }
 
@@ -663,8 +665,65 @@ public unsafe class Game
         }
         catch (Exception e)
         {
-            ARealmRecorded.PrintError($"Failed to delete recording\n{e}");
+            ARealmRecorded.PrintError($"Failed to delete replay\n{e}");
         }
+    }
+
+    public static void ArchiveRecordings()
+    {
+        var archivableReplays = ReplayList.Where(t => !t.Item2.IsPlayable && t.Item1.Directory?.Name == "replay").ToList();
+        if (archivableReplays.Count == 0) return;
+
+        var restoreBackup = true;
+
+        try
+        {
+            using (var zipFileStream = new FileStream(archiveZip, FileMode.OpenOrCreate))
+            using (var zipFile = new ZipArchive(zipFileStream, ZipArchiveMode.Update))
+            {
+                var expectedEntryCount = zipFile.Entries.Count;
+                if (expectedEntryCount > 0)
+                {
+                    var prevPosition = zipFileStream.Position;
+                    zipFileStream.Position = 0;
+                    using var zipBackupFileStream = new FileStream($"{archiveZip}.BACKUP", FileMode.Create);
+                    zipFileStream.CopyTo(zipBackupFileStream);
+                    zipFileStream.Position = prevPosition;
+                }
+
+                foreach (var (file, _) in archivableReplays)
+                {
+                    zipFile.CreateEntryFromFile(file.FullName, file.Name);
+                    expectedEntryCount++;
+                }
+
+                if (zipFile.Entries.Count != expectedEntryCount)
+                    throw new IOException($"Number of archived replays was unexpected (Expected: {expectedEntryCount}, Actual: {zipFile.Entries.Count}) after archiving, restoring backup!");
+            }
+
+            restoreBackup = false;
+
+            foreach (var (file, _) in archivableReplays)
+                file.Delete();
+        }
+        catch (Exception e)
+        {
+
+            if (restoreBackup)
+            {
+                try
+                {
+                    using var zipBackupFileStream = new FileStream($"{archiveZip}.BACKUP", FileMode.Open);
+                    using var zipFileStream = new FileStream(archiveZip, FileMode.Create);
+                    zipBackupFileStream.CopyTo(zipFileStream);
+                }
+                catch { }
+            }
+
+            ARealmRecorded.PrintError($"Failed to archive replays\n{e}");
+        }
+
+        GetReplayList();
     }
 
     public static void SetDutyRecorderMenuSelection(nint agent, byte slot)
@@ -700,7 +759,7 @@ public unsafe class Game
         }
         catch (Exception e)
         {
-            ARealmRecorded.PrintError($"Failed to copy recording to slot {slot + 1}\n{e}");
+            ARealmRecorded.PrintError($"Failed to copy replay to slot {slot + 1}\n{e}");
         }
     }
 
