@@ -345,7 +345,7 @@ public static unsafe class PluginUI
         ImGui.PopFont();
 
         var seek = Game.ffxivReplay->seek;
-        if (Game.IsLoadingChapter)
+        if (!Game.IsPaused || Game.IsLoadingChapter)
         {
             if (seek != lastSeek)
             {
@@ -357,8 +357,10 @@ public static unsafe class PluginUI
             {
                 ImGui.SameLine();
                 var segment = Game.GetReplayDataSegmentDetour(Game.ffxivReplay);
-                if (ImGui.Button("Unstuck") && segment != null)
+                ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive));
+                if (ImGui.Button("UNSTUCK") && segment != null)
                     Game.ffxivReplay->overallDataOffset += segment->Length;
+                ImGui.PopStyleColor();
             }
         }
 

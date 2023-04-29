@@ -62,6 +62,7 @@ public unsafe class Game
     private static byte* waymarkToggle; // Actually a uint, but only seems to use the first 2 bits
 
     public static bool InPlayback => (ffxivReplay->playbackControls & 4) != 0;
+    public static bool IsPaused => (ffxivReplay->playbackControls & 8) != 0;
     public static bool IsSavingPackets => (ffxivReplay->status & 4) != 0;
     public static bool IsRecording => (ffxivReplay->status & 0x74) == 0x74;
     public static bool IsLoadingChapter => ffxivReplay->selectedChapter < 0x40;
@@ -671,8 +672,8 @@ public unsafe class Game
 
     public static void ArchiveReplays()
     {
-        var archivableReplays = ReplayList.Where(t => !t.Item2.header.IsPlayable && t.Item1.Directory?.Name == "replay").ToList();
-        if (archivableReplays.Count == 0) return;
+        var archivableReplays = ReplayList.Where(t => !t.Item2.header.IsPlayable && t.Item1.Directory?.Name == "replay").ToArray();
+        if (archivableReplays.Length == 0) return;
 
         var restoreBackup = true;
 
