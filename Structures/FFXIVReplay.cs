@@ -1,4 +1,5 @@
-using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using FFXIVClientStructs.FFXIV.Client.System.String;
 
@@ -10,7 +11,7 @@ public unsafe struct FFXIVReplay
     [StructLayout(LayoutKind.Explicit, Size = 0x60)]
     public struct Header
     {
-        private static readonly byte[] validBytes = { 0x46, 0x46, 0x58, 0x49, 0x56, 0x52, 0x45, 0x50, 0x4C, 0x41, 0x59 };
+        private static readonly byte[] validBytes = "FFXIVREPLAY"u8.ToArray();
 
         [FieldOffset(0x0)] public fixed byte FFXIVREPLAY[12]; // FFXIVREPLAY
         [FieldOffset(0xC)] public short u0xC; // Always 4? Possibly replay system version, wont play if not 4
@@ -34,7 +35,8 @@ public unsafe struct FFXIVReplay
 
         public bool IsValid
         {
-            get {
+            get
+            {
                 for (int i = 0; i < validBytes.Length; i++)
                 {
                     if (validBytes[i] != FFXIVREPLAY[i])
@@ -47,6 +49,19 @@ public unsafe struct FFXIVReplay
         public bool IsPlayable => replayVersion == Game.ffxivReplay->replayVersion && u0xC == 4;
 
         public bool IsLocked => IsValid && IsPlayable && (info & 2) != 0;
+
+        public Lumina.Excel.GeneratedSheets.ContentFinderCondition ContentFinderCondition => DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ContentFinderCondition>()!.GetRow(contentID);
+
+        public Lumina.Excel.GeneratedSheets.ClassJob LocalPlayerClassJob =>
+            DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ClassJob>()!.GetRow(jobs[playerIndex])
+            ?? DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ClassJob>()!.GetRow(0);
+
+        private byte GetJobSafe(int i) => jobs[i];
+
+        public IEnumerable<Lumina.Excel.GeneratedSheets.ClassJob> JobEnumerable => Enumerable.Range(0, 8)
+            .Select(GetJobSafe).TakeWhile(id => id != 0)
+            .Select(id => DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ClassJob>()!.GetRow(id)
+                ?? DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ClassJob>()!.GetRow(0));
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 0x4 + 0xC * 64)]
@@ -70,9 +85,7 @@ public unsafe struct FFXIVReplay
                     return null;
 
                 fixed (void* ptr = &this)
-                {
                     return (Chapter*)((nint)ptr + 4) + i;
-                }
             }
         }
     }
@@ -175,7 +188,7 @@ public unsafe struct FFXIVReplay
     [FieldOffset(0x704)] public float speed;
     [FieldOffset(0x708)] public float u0x708; // Seems to be 1 or 0, depending on if the speed is greater than 1 (Probably sound timescale)
     [FieldOffset(0x70C)] public byte selectedChapter; // 64 when playing, otherwise determines the current chapter being seeked to
-    [FieldOffset(0x710)] public uint startingMS; // The ms considered 00:00:00
+    [FieldOffset(0x710)] public uint startingMS; // The ms considered 00:00:00, is NOT set if seek would be below the value (as in currently replaying the zone in packets)
     [FieldOffset(0x714)] public int u0x714;
     [FieldOffset(0x718)] public short u0x718;
     [FieldOffset(0x71A)] public byte status; // Bitfield determining the current status of the system (1 Just logged in?, 2 Can record, 4 Saving packets, 8 ???, 16 Record Ready Checked?, 32 Save recording?, 64 Barrier down, 128 In playback after barrier drops?)

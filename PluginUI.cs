@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface;
+using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
@@ -130,6 +131,7 @@ public static unsafe class PluginUI
         for (int i = 0; i < Game.ReplayList.Count; i++)
         {
             var (file, replay) = Game.ReplayList[i];
+            var header = replay.header;
             var path = file.FullName;
             var fileName = file.Name;
             var displayName = displayNameRegex.Match(fileName) is { Success: true } match ? match.Groups[1].Value : fileName[..fileName.LastIndexOf('.')];
@@ -140,7 +142,7 @@ public static unsafe class PluginUI
             ImGui.TableNextColumn();
             if (!isPlayable)
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
-            ImGui.TextUnformatted(DateTimeOffset.FromUnixTimeSeconds(replay.header.timestamp).LocalDateTime.ToString(CultureInfo.CurrentCulture));
+            ImGui.TextUnformatted(DateTimeOffset.FromUnixTimeSeconds(header.timestamp).LocalDateTime.ToString(CultureInfo.CurrentCulture));
             if (!isPlayable)
                 ImGui.PopStyleColor();
             ImGui.TableNextColumn();
@@ -150,7 +152,7 @@ public static unsafe class PluginUI
                 if (!isPlayable)
                     ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
                 if (ImGui.Selectable(autoRenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.LastSelectedReplay && *(byte*)(agent + 0x2C) == 100, ImGuiSelectableFlags.SpanAllColumns))
-                    Game.SetDutyRecorderMenuSelection(agent, path, replay.header);
+                    Game.SetDutyRecorderMenuSelection(agent, path, header);
                 if (!isPlayable)
                     ImGui.PopStyleColor();
 
@@ -174,7 +176,7 @@ public static unsafe class PluginUI
                             }
                         }
 
-                        var nextStartMS = replay.header.ms;
+                        var nextStartMS = header.ms;
                         for (int k = j + 1; k < replay.chapters.length; k++)
                         {
                             var nextStart = replay.chapters[k];
@@ -192,10 +194,45 @@ public static unsafe class PluginUI
                             longestPull = timeSpan;
                     }
 
-                    var tooltip = $"Length: {new TimeSpan(0, 0, 0, 0, (int)replay.header.ms):hh':'mm':'ss}";
+                    ImGui.BeginTooltip();
+                    ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
+
+                    ImGui.TextUnformatted($"Duty: {header.ContentFinderCondition?.Name.ToDalamudString()}");
+                    if ((header.info & 4) != 0)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextUnformatted(" ");
+                        ImGui.SameLine();
+                        ImGui.PushFont(UiBuilder.IconFont);
+                        ImGui.TextColored(new Vector4(0, 1, 0, 1), FontAwesomeIcon.Check.ToIconString());
+                        ImGui.PopFont();
+                    }
+
+                    var foundPlayer = false;
+                    ImGui.TextUnformatted("Party:");
+                    foreach (var row in header.JobEnumerable.OrderBy(row => row.UIPriority))
+                    {
+                        ImGui.SameLine();
+                        if (!foundPlayer && row == header.LocalPlayerClassJob)
+                        {
+                            ImGui.TextUnformatted($" «{row.Abbreviation}»");
+                            foundPlayer = true;
+                        }
+                        else
+                        {
+                            ImGui.TextUnformatted($" {row.Abbreviation}");
+                        }
+                    }
+
+                    ImGui.TextUnformatted($"Length: {new TimeSpan(0, 0, 0, 0, (int)header.ms):hh':'mm':'ss}");
                     if (longestPull > TimeSpan.Zero)
-                        tooltip += $"\nNumber of Pulls: {pulls}\nLongest Pull: {longestPull:hh':'mm':'ss}";
-                    ImGui.SetTooltip(tooltip);
+                    {
+                        ImGui.TextUnformatted($"Number of Pulls: {pulls}");
+                        ImGui.TextUnformatted($"Longest Pull: {longestPull:hh':'mm':'ss}");
+                    }
+
+                    ImGui.PopStyleVar();
+                    ImGui.EndTooltip();
                 }
 
                 if (ImGui.BeginPopupContextItem())
@@ -203,7 +240,7 @@ public static unsafe class PluginUI
                     for (byte j = 0; j < 3; j++)
                     {
                         if (!ImGui.Selectable($"Copy to slot #{j + 1}")) continue;
-                        Game.CopyReplayIntoSlot(agent, file, replay.header, j);
+                        Game.CopyReplayIntoSlot(agent, file, header, j);
                         needSort = true;
                     }
 
