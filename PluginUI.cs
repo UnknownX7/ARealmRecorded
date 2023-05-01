@@ -478,6 +478,12 @@ public static unsafe class PluginUI
     {
         var save = false;
 
+        if (ImGui.Checkbox("Hide Own Name (Requires Replay Restart)", ref ARealmRecorded.Config.EnableHideOwnName))
+        {
+            Game.replaceLocalPlayerNameReplacer.Toggle();
+            save = true;
+        }
+
         save |= ImGui.Checkbox("Enable Quick Chapter Load", ref ARealmRecorded.Config.EnableQuickLoad);
 
         save |= ImGui.Checkbox("Enable Right Click to Jump to Time", ref ARealmRecorded.Config.EnableJumpToTime);
@@ -485,7 +491,7 @@ public static unsafe class PluginUI
             ImGui.SetTooltip("Doing this WILL result in playback not appearing correctly!");
         ImGui.SameLine();
         ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.TextUnformatted(FontAwesomeIcon.ExclamationTriangle.ToIconString());
+        ImGui.TextColored(new Vector4(1, 1, 0, 1), FontAwesomeIcon.ExclamationTriangle.ToIconString());
         ImGui.PopFont();
 
         if (ARealmRecorded.Config.EnableQuickLoad)
