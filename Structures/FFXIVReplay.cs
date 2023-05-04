@@ -58,7 +58,7 @@ public unsafe struct FFXIVReplay
 
         private byte GetJobSafe(int i) => jobs[i];
 
-        public IEnumerable<Lumina.Excel.GeneratedSheets.ClassJob> JobEnumerable => Enumerable.Range(0, 8)
+        public IEnumerable<Lumina.Excel.GeneratedSheets.ClassJob> ClassJobs => Enumerable.Range(0, 8)
             .Select(GetJobSafe).TakeWhile(id => id != 0)
             .Select(id => DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ClassJob>()!.GetRow(id)
                 ?? DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ClassJob>()!.GetRow(0));

@@ -210,7 +210,7 @@ public static unsafe class PluginUI
 
                     var foundPlayer = false;
                     ImGui.TextUnformatted("Party:");
-                    foreach (var row in header.JobEnumerable.OrderBy(row => row.UIPriority))
+                    foreach (var row in header.ClassJobs.OrderBy(row => row.UIPriority))
                     {
                         ImGui.SameLine();
                         if (!foundPlayer && row == header.LocalPlayerClassJob)
