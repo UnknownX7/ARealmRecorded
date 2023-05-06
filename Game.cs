@@ -7,11 +7,10 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.Config;
 using Dalamud.Hooking;
 using Dalamud.Memory;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
-using FFXIVClientStructs.FFXIV.Client.System.String;
-using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Hypostasis.Game.Structures;
 
 namespace ARealmRecorded;
@@ -220,7 +219,7 @@ public static unsafe class Game
     private delegate nint EventBeginDelegate(nint a1, nint a2);
     [HypostasisSignatureInjection("40 55 53 57 41 55 41 57 48 8D 6C 24 C9")]
     private static Hook<EventBeginDelegate> EventBeginHook;
-    private static nint EventBeginDetour(nint a1, nint a2) => !Common.FFXIVReplay->InPlayback || ConfigModule.Instance()->GetIntValue(ConfigOption.CutsceneSkipIsContents) == 0 ? EventBeginHook.Original(a1, a2) : nint.Zero;
+    private static nint EventBeginDetour(nint a1, nint a2) => !Common.FFXIVReplay->InPlayback || !DalamudApi.GameConfig.UiConfig.TryGetBool(nameof(UiConfigOption.CutsceneSkipIsContents), out var b) || !b ? EventBeginHook.Original(a1, a2) : nint.Zero;
 
     public delegate Bool RsvReceiveDelegate(nint data);
     [HypostasisSignatureInjection("44 8B 09 4C 8D 41 34")]
