@@ -2,7 +2,7 @@
 
 namespace ARealmRecorded;
 
-public class Configuration : IPluginConfiguration
+public class Configuration : PluginConfiguration, IPluginConfiguration
 {
     public int Version { get; set; }
     public string LastLoadedReplay;
@@ -14,8 +14,4 @@ public class Configuration : IPluginConfiguration
     public bool EnableJumpToTime = false;
     public float MaxSeekDelta = 100;
     public float CustomSpeedPreset = 30;
-
-    public void Initialize() { }
-
-    public void Save() => DalamudApi.PluginInterface.SavePluginConfig(this);
 }

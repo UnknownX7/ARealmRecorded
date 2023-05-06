@@ -8,24 +8,24 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
-using Dalamud.Logging;
 using Dalamud.Memory;
-using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using Hypostasis.Game.Structures;
 
 namespace ARealmRecorded;
 
-public unsafe class Game
+[HypostasisInjection]
+public static unsafe class Game
 {
     private static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPath, "replay");
     private static readonly string autoRenamedFolder = Path.Combine(replayFolder, "autorenamed");
     private static readonly string archiveZip = Path.Combine(replayFolder, "archive.zip");
     private static readonly string deletedFolder = Path.Combine(replayFolder, "deleted");
-    private static Structures.FFXIVReplay.ReplayFile* loadedReplay = null;
+    private static FFXIVReplay.ReplayFile* loadedReplay = null;
 
     public static string LastSelectedReplay { get; private set; }
-    private static Structures.FFXIVReplay.Header lastSelectedHeader;
+    private static FFXIVReplay.Header lastSelectedHeader;
 
     private static int quickLoadChapter = -1;
     private static int seekingChapter = 0;
@@ -36,8 +36,8 @@ public unsafe class Game
 
     private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28, 29, 30 }; // 22 Event, 26 Eureka, 27 Carnivale
 
-    private static List<(FileInfo, Structures.FFXIVReplay.ReplayFile)> replayList;
-    public static List<(FileInfo, Structures.FFXIVReplay.ReplayFile)> ReplayList
+    private static List<(FileInfo, FFXIVReplay.ReplayFile)> replayList;
+    public static List<(FileInfo, FFXIVReplay.ReplayFile)> ReplayList
     {
         get => replayList ?? GetReplayList();
         set => replayList = value;
@@ -49,56 +49,27 @@ public unsafe class Game
     private const ushort RsvOpcode = 0xF001;
     private static readonly List<byte[]> rsvBuffer = new();
 
-    private static readonly Memory.Replacer alwaysRecordReplacer = new("A8 04 75 27 A8 02 74 23 48 8B", new byte[] { 0xEB, 0x21 }, true); // 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90
-    private static readonly Memory.Replacer removeRecordReadyToastReplacer = new("BA CB 07 00 00 48 8B CF E8", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
-    private static readonly Memory.Replacer removeProcessingLimitReplacer = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte[] { 0x90, 0x90, 0x90 }, true);
-    private static readonly Memory.Replacer removeProcessingLimitReplacer2 = new("77 57 48 8B 0D ?? ?? ?? ?? 33 C0", new byte[] { 0x90, 0x90 }, true);
-    private static readonly Memory.Replacer forceFastForwardReplacer = new("0F 83 ?? ?? ?? ?? 0F B7 47 02 4C 8D 47 0C", new byte[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
+    private static readonly AsmPatch alwaysRecordPatch = new("A8 04 75 27 A8 02 74 23 48 8B", new byte?[] { 0xEB, 0x21 }, true); // 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90
+    private static readonly AsmPatch removeRecordReadyToastPatch = new("BA CB 07 00 00 48 8B CF E8", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
+    private static readonly AsmPatch removeProcessingLimitPatch = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte?[] { 0x90, 0x90, 0x90 }, true);
+    private static readonly AsmPatch removeProcessingLimitPatch2 = new("77 57 48 8B 0D ?? ?? ?? ?? 33 C0", new byte?[] { 0x90, 0x90 }, true);
+    private static readonly AsmPatch forceFastForwardPatch = new("0F 83 ?? ?? ?? ?? 0F B7 47 02 4C 8D 47 0C", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
 
-    // mov rcx, r14 -> xor rcx, rcx
-    public static readonly Memory.Replacer replaceLocalPlayerNameReplacer = new(DalamudApi.SigScanner.ScanModule("F6 05 ?? ?? ?? ?? 04 74 ?? 45 33 C0 33 D2 49 8B CE E8 ?? ?? ?? ?? 84 C0 75 ??") + 24, new byte[] { 0x90, 0x90 }, ARealmRecorded.Config.EnableHideOwnName);
+    public static readonly AsmPatch replaceLocalPlayerNamePatch = new("F6 05 ?? ?? ?? ?? 04 74 ?? 45 33 C0 33 D2 49 8B CE E8 ?? ?? ?? ?? 84 C0 75 ??", "?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 90 90", ARealmRecorded.Config.EnableHideOwnName);
 
-    [Signature("48 8D 0D ?? ?? ?? ?? 88 44 24 24", ScanType = ScanType.StaticAddress)]
-    public static Structures.FFXIVReplay* ffxivReplay;
-
-    [Signature("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 0E", ScanType = ScanType.StaticAddress)]
+    [HypostasisSignatureInjection("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 0E", Static = true, Offset = 0x48)]
     private static byte* waymarkToggle; // Actually a uint, but only seems to use the first 2 bits
-
-    public static bool InPlayback => (ffxivReplay->playbackControls & 4) != 0;
-    public static bool IsPaused => (ffxivReplay->playbackControls & 8) != 0;
-    public static bool IsSavingPackets => (ffxivReplay->status & 4) != 0;
-    public static bool IsRecording => (ffxivReplay->status & 0x74) == 0x74;
-    public static bool IsLoadingChapter => ffxivReplay->selectedChapter < 0x40;
 
     public static bool IsWaymarkVisible => (*waymarkToggle & 2) == 0;
 
-    [Signature("?? ?? 00 00 01 75 74 85 FF 75 07 E8")]
+    [HypostasisSignatureInjection("?? ?? 00 00 01 75 74 85 FF 75 07 E8")]
     public static short contentDirectorOffset;
 
-    [Signature("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 74 5D")]
-    private static delegate* unmanaged<Structures.FFXIVReplay*, byte, void> beginRecording;
-    public static void BeginRecording() => beginRecording(ffxivReplay, 1);
-
-    [Signature("E8 ?? ?? ?? ?? 84 C0 74 8D 48 8B CE")]
-    private static delegate* unmanaged<Structures.FFXIVReplay*, byte, byte> setChapter;
-    private static byte SetChapter(byte chapter) => setChapter(ffxivReplay, chapter);
-
-    //[Signature("E9 ?? ?? ?? ?? 48 83 4B 70 04")]
-    //private static delegate* unmanaged<Structures.FFXIVReplay*, byte, byte> addRecordingChapter;
-    //public static bool AddRecordingChapter(byte type) => addRecordingChapter(ffxivReplay, type) != 0;
-
-    //[Signature("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 24 06 3C 04 75 5D 83 B9")]
-    //private static delegate* unmanaged<Structures.FFXIVReplay*, void> resetPlayback;
-    //public static void ResetPlayback() => resetPlayback(ffxivReplay);
-
-    [Signature("48 89 5C 24 10 57 48 81 EC 70 04 00 00")]
+    [HypostasisSignatureInjection("48 89 5C 24 10 57 48 81 EC 70 04 00 00")]
     private static delegate* unmanaged<nint, void> displaySelectedDutyRecording;
     public static void DisplaySelectedDutyRecording(nint agent) => displaySelectedDutyRecording(agent);
 
-    private delegate void InitializeRecordingDelegate(Structures.FFXIVReplay* ffxivReplay);
-    [Signature("40 55 57 48 8D 6C 24 B1 48 81 EC 98 00 00 00", DetourName = "InitializeRecordingDetour")]
-    private static Hook<InitializeRecordingDelegate> InitializeRecordingHook;
-    private static void InitializeRecordingDetour(Structures.FFXIVReplay* ffxivReplay)
+    private static void InitializeRecordingDetour(FFXIVReplay* ffxivReplay)
     {
         var id = ffxivReplay->initZonePacket.contentFinderCondition;
         if (id == 0) return;
@@ -110,8 +81,8 @@ public unsafe class Game
         if (!whitelistedContentTypes.Contains(contentType)) return;
 
         FixNextReplaySaveSlot();
-        InitializeRecordingHook.Original(ffxivReplay);
-        BeginRecording();
+        FFXIVReplay.initializeRecording.Original(ffxivReplay);
+        ffxivReplay->BeginRecording();
 
         var header = ffxivReplay->replayHeader;
         header.localCID = 0;
@@ -123,13 +94,10 @@ public unsafe class Game
         FlushRsvRsfBuffers(); // TODO: Look into potential issue with packets received from The Unending Journey being added to replays
     }
 
-    private delegate byte RequestPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte slot);
-    [Signature("48 89 5C 24 08 57 48 83 EC 30 F6 81 ?? ?? ?? ?? 04", DetourName = "RequestPlaybackDetour")] // E8 ?? ?? ?? ?? EB 2B 48 8B CB 89 53 2C (+0x14)
-    private static Hook<RequestPlaybackDelegate> RequestPlaybackHook;
-    public static byte RequestPlaybackDetour(Structures.FFXIVReplay* ffxivReplay, byte slot)
+    public static Bool RequestPlaybackDetour(FFXIVReplay* ffxivReplay, byte slot)
     {
         var customSlot = slot == 100;
-        Structures.FFXIVReplay.Header prevHeader = new();
+        FFXIVReplay.Header prevHeader = new();
 
         if (customSlot)
         {
@@ -142,7 +110,7 @@ public unsafe class Game
             LastSelectedReplay = null;
         }
 
-        var ret = RequestPlaybackHook.Original(ffxivReplay, slot);
+        var ret = FFXIVReplay.requestPlayback.Original(ffxivReplay, slot);
 
         if (customSlot)
             ffxivReplay->savedReplayHeaders[0] = prevHeader;
@@ -150,13 +118,10 @@ public unsafe class Game
         return ret;
     }
 
-    private delegate void BeginPlaybackDelegate(Structures.FFXIVReplay* ffxivReplay, byte canEnter);
-    [Signature("E8 ?? ?? ?? ?? 0F B7 17 48 8B CB", DetourName = "BeginPlaybackDetour")]
-    private static Hook<BeginPlaybackDelegate> BeginPlaybackHook;
-    private static void BeginPlaybackDetour(Structures.FFXIVReplay* ffxivReplay, byte allowed)
+    private static void BeginPlaybackDetour(FFXIVReplay* ffxivReplay, Bool allowed)
     {
-        BeginPlaybackHook.Original(ffxivReplay, allowed);
-        if (allowed == 0) return;
+        FFXIVReplay.beginPlayback.Original(ffxivReplay, allowed);
+        if (!allowed) return;
 
         UnloadReplay();
 
@@ -166,18 +131,16 @@ public unsafe class Game
             LoadReplay(LastSelectedReplay);
     }
 
-    [Signature("E8 ?? ?? ?? ?? F6 83 ?? ?? ?? ?? 04 74 38 F6 83 ?? ?? ?? ?? 01", DetourName = "PlaybackUpdateDetour")]
-    private static Hook<InitializeRecordingDelegate> PlaybackUpdateHook;
-    private static void PlaybackUpdateDetour(Structures.FFXIVReplay* ffxivReplay)
+    private static void PlaybackUpdateDetour(FFXIVReplay* ffxivReplay)
     {
-        PlaybackUpdateHook.Original(ffxivReplay);
+        FFXIVReplay.playbackUpdate.Original(ffxivReplay);
 
         UpdateAutoRename();
 
-        if (IsRecording && ffxivReplay->chapters[0]->type == 1) // For some reason the barrier dropping in dungeons is 5, but in trials it's 1
+        if (ffxivReplay->IsRecording && ffxivReplay->chapters[0]->type == 1) // For some reason the barrier dropping in dungeons is 5, but in trials it's 1
             ffxivReplay->chapters[0]->type = 5;
 
-        if (!InPlayback) return;
+        if (!ffxivReplay->InPlayback) return;
 
         SetConditionFlag(ConditionFlag.OccupiedInCutSceneEvent, false);
 
@@ -194,33 +157,27 @@ public unsafe class Game
         DoQuickLoad();
     }
 
-    private delegate Structures.FFXIVReplay.ReplayDataSegment* GetReplayDataSegmentDelegate(Structures.FFXIVReplay* ffxivReplay);
-    [Signature("40 53 48 83 EC 20 8B 81 90 00 00 00")]
-    private static Hook<GetReplayDataSegmentDelegate> GetReplayDataSegmentHook;
-    public static Structures.FFXIVReplay.ReplayDataSegment* GetReplayDataSegmentDetour(Structures.FFXIVReplay* ffxivReplay)
+    public static FFXIVReplay.ReplayDataSegment* GetReplayDataSegmentDetour(FFXIVReplay* ffxivReplay)
     {
         // Needs to be here to prevent infinite looping
         if (seekingOffset > 0 && seekingOffset <= ffxivReplay->overallDataOffset)
         {
-            forceFastForwardReplacer.Disable();
+            forceFastForwardPatch.Disable();
             seekingOffset = 0;
         }
 
         // Absurdly hacky, but it works
         if (!ARealmRecorded.Config.EnableQuickLoad || ARealmRecorded.Config.MaxSeekDelta <= 100 || ffxivReplay->seekDelta >= ARealmRecorded.Config.MaxSeekDelta)
-            removeProcessingLimitReplacer2.Disable();
+            removeProcessingLimitPatch2.Disable();
         else
-            removeProcessingLimitReplacer2.Enable();
+            removeProcessingLimitPatch2.Enable();
 
-        return loadedReplay == null ? GetReplayDataSegmentHook.Original(ffxivReplay) : loadedReplay->GetDataSegment((uint)ffxivReplay->overallDataOffset);
+        return loadedReplay == null ? FFXIVReplay.getReplayDataSegment.Original(ffxivReplay) : loadedReplay->GetDataSegment((uint)ffxivReplay->overallDataOffset);
     }
 
-    private delegate void OnSetChapterDelegate(Structures.FFXIVReplay* ffxivReplay, byte chapter);
-    [Signature("48 89 5C 24 08 57 48 83 EC 30 48 8B D9 0F B6 FA 48 8B 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? 48 85 C0 74 24", DetourName = "OnSetChapterDetour")]
-    private static Hook<OnSetChapterDelegate> OnSetChapterHook;
-    private static void OnSetChapterDetour(Structures.FFXIVReplay* ffxivReplay, byte chapter)
+    private static void OnSetChapterDetour(FFXIVReplay* ffxivReplay, byte chapter)
     {
-        OnSetChapterHook.Original(ffxivReplay, chapter);
+        FFXIVReplay.onSetChapter.Original(ffxivReplay, chapter);
 
         if (!ARealmRecorded.Config.EnableQuickLoad || chapter <= 0 || ffxivReplay->chapters.length < 2) return;
 
@@ -229,30 +186,30 @@ public unsafe class Game
         DoQuickLoad();
     }
 
-    private delegate byte ExecuteCommandDelegate(uint clientTrigger, int param1, int param2, int param3, int param4);
-    [Signature("E8 ?? ?? ?? ?? 8D 43 0A")]
+    private delegate Bool ExecuteCommandDelegate(uint clientTrigger, int param1, int param2, int param3, int param4);
+    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 8D 43 0A")]
     private static Hook<ExecuteCommandDelegate> ExecuteCommandHook;
-    private static byte ExecuteCommandDetour(uint clientTrigger, int param1, int param2, int param3, int param4)
+    private static Bool ExecuteCommandDetour(uint clientTrigger, int param1, int param2, int param3, int param4)
     {
-        if (!InPlayback || clientTrigger is 201 or 1981) return ExecuteCommandHook.Original(clientTrigger, param1, param2, param3, param4); // Block GPose and Idle Camera from sending packets
+        if (!Common.FFXIVReplay->InPlayback || clientTrigger is 201 or 1981) return ExecuteCommandHook.Original(clientTrigger, param1, param2, param3, param4); // Block GPose and Idle Camera from sending packets
         if (clientTrigger == 314) // Mimic GPose and Idle Camera ConditionFlag for plugin compatibility
             SetConditionFlag(ConditionFlag.WatchingCutscene, param1 != 0);
-        return 0;
+        return false;
     }
 
-    private delegate byte DisplayRecordingOnDTRBarDelegate(nint agent);
-    [Signature("E8 ?? ?? ?? ?? 44 0F B6 C0 BA 4F 00 00 00", DetourName = "DisplayRecordingOnDTRBarDetour")]
+    private delegate Bool DisplayRecordingOnDTRBarDelegate(nint agent);
+    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 44 0F B6 C0 BA 4F 00 00 00")]
     private static Hook<DisplayRecordingOnDTRBarDelegate> DisplayRecordingOnDTRBarHook;
-    private static byte DisplayRecordingOnDTRBarDetour(nint agent) => (byte)(ARealmRecorded.Config.EnableRecordingIcon && IsRecording && DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi ? 1 : 0);
+    private static Bool DisplayRecordingOnDTRBarDetour(nint agent) => ARealmRecorded.Config.EnableRecordingIcon && Common.FFXIVReplay->IsRecording && DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi;
 
     private delegate void ContentDirectorTimerUpdateDelegate(nint contentDirector);
-    [Signature("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 0F 84 ?? ?? ?? ?? A8 08", DetourName = "ContentDirectorTimerUpdateDetour")]
+    [HypostasisSignatureInjection("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 0F 84 ?? ?? ?? ?? A8 08")]
     private static Hook<ContentDirectorTimerUpdateDelegate> ContentDirectorTimerUpdateHook;
     private static void ContentDirectorTimerUpdateDetour(nint contentDirector)
     {
         if ((*(byte*)(contentDirector + contentDirectorOffset) & 12) == 12)
         {
-            ffxivReplay->status |= 64;
+            Common.FFXIVReplay->status |= 64;
             ContentDirectorTimerUpdateHook.Disable();
         }
 
@@ -260,14 +217,14 @@ public unsafe class Game
     }
 
     private delegate nint EventBeginDelegate(nint a1, nint a2);
-    [Signature("40 55 53 57 41 55 41 57 48 8D 6C 24 C9")]
+    [HypostasisSignatureInjection("40 55 53 57 41 55 41 57 48 8D 6C 24 C9")]
     private static Hook<EventBeginDelegate> EventBeginHook;
-    private static nint EventBeginDetour(nint a1, nint a2) => !InPlayback || ConfigModule.Instance()->GetIntValue(ConfigOption.CutsceneSkipIsContents) == 0 ? EventBeginHook.Original(a1, a2) : nint.Zero;
+    private static nint EventBeginDetour(nint a1, nint a2) => !Common.FFXIVReplay->InPlayback || ConfigModule.Instance()->GetIntValue(ConfigOption.CutsceneSkipIsContents) == 0 ? EventBeginHook.Original(a1, a2) : nint.Zero;
 
-    public delegate byte RsvReceiveDelegate(nint data);
-    [Signature("44 8B 09 4C 8D 41 34", DetourName = nameof(RsvReceiveDetour))]
+    public delegate Bool RsvReceiveDelegate(nint data);
+    [HypostasisSignatureInjection("44 8B 09 4C 8D 41 34")]
     private static Hook<RsvReceiveDelegate> RsvReceiveHook;
-    private static byte RsvReceiveDetour(nint data)
+    private static Bool RsvReceiveDetour(nint data)
     {
         var size = *(int*)data; // Value size
         var length = size + 0x4 + 0x30; // Package size
@@ -275,10 +232,10 @@ public unsafe class Game
         return RsvReceiveHook.Original(data);
     }
 
-    public delegate byte RsfReceiveDelegate(nint data);
-    [Signature("48 8B 11 4C 8D 41 08", DetourName = nameof(RsfReceiveDetour))]
+    public delegate Bool RsfReceiveDelegate(nint data);
+    [HypostasisSignatureInjection("48 8B 11 4C 8D 41 08")]
     private static Hook<RsfReceiveDelegate> RsfReceiveHook;
-    private static byte RsfReceiveDetour(nint data)
+    private static Bool RsfReceiveDetour(nint data)
     {
         rsfBuffer.Add(MemoryHelper.ReadRaw(data, RsfSize));
         return RsfReceiveHook.Original(data);
@@ -286,20 +243,20 @@ public unsafe class Game
 
     private static void FlushRsvRsfBuffers()
     {
-        if (IsSavingPackets)
+        if (Common.FFXIVReplay->IsSavingPackets)
         {
             //PluginLog.Debug($"Recording {rsfBuffer.Count} RSF packets");
             foreach (var rsf in rsfBuffer)
             {
                 fixed (byte* data = rsf)
-                    RecordPacket(ffxivReplay, 0xE000_0000, RsfOpcode, (nint)data, (ulong)rsf.Length);
+                    Common.FFXIVReplay->WritePacket(0xE000_0000, RsfOpcode, data, (ushort)rsf.Length);
             }
 
             //PluginLog.Debug($"Recording {rsvBuffer.Count} RSV packets");
             foreach (var rsv in rsvBuffer)
             {
                 fixed (byte* data = rsv)
-                    RecordPacket(ffxivReplay, 0xE000_0000, RsvOpcode, (nint)data, (ulong)rsv.Length);
+                    Common.FFXIVReplay->WritePacket(0xE000_0000, RsvOpcode, data, (ushort)rsv.Length);
             }
         }
 
@@ -307,36 +264,28 @@ public unsafe class Game
         rsvBuffer.Clear();
     }
 
-    [Signature("E8 ?? ?? ?? ?? 84 C0 74 60 33 C0")]
-    private static delegate* unmanaged<Structures.FFXIVReplay*, uint, ushort, nint, ulong, uint> recordPacket;
-    public static void RecordPacket(Structures.FFXIVReplay* replayModule, uint targetId, ushort opcode, nint data, ulong length) => recordPacket(replayModule, targetId, opcode, data, length);
-
-    private delegate uint DispatchPacketDelegate(Structures.FFXIVReplay* replayModule, nint header, nint data);
-    [Signature("E8 ?? ?? ?? ?? 80 BB ?? ?? ?? ?? ?? 77 93", DetourName = nameof(DispatchPacketDetour))]
-    private static Hook<DispatchPacketDelegate> DispatchPacketHook;
-    private static uint DispatchPacketDetour(Structures.FFXIVReplay* replayModule, nint header, nint data)
+    private static Bool ReplayPacketDetour(FFXIVReplay* ffxivReplay, FFXIVReplay.ReplayDataSegment* segment, byte* data)
     {
-        var opcode = *(ushort*)header;
         //PluginLog.Debug($"Dispatch:0x{opcode:X}");
-        switch (opcode) {
+        switch (segment->opcode) {
             case RsvOpcode:
-                RsvReceiveHook.Original(data);
+                RsvReceiveHook.Original((nint)data);
                 break;
             case RsfOpcode:
-                RsfReceiveHook.Original(data);
+                RsfReceiveHook.Original((nint)data);
                 break;
         }
-        return DispatchPacketHook.Original(replayModule, header, data);
+        return FFXIVReplay.replayPacket.Original(ffxivReplay, segment, data);
     }
 
     public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
 
     private static void UpdateAutoRename()
     {
-        switch (IsRecording)
+        switch (Common.FFXIVReplay->IsRecording)
         {
             case true when currentRecordingSlot < 0:
-                currentRecordingSlot = ffxivReplay->nextReplaySaveSlot;
+                currentRecordingSlot = Common.FFXIVReplay->nextReplaySaveSlot;
                 break;
             case false when currentRecordingSlot >= 0:
                 AutoRenameReplay();
@@ -357,9 +306,9 @@ public unsafe class Game
             Marshal.FreeHGlobal((nint)loadedReplay);
 
         loadedReplay = newReplay;
-        ffxivReplay->replayHeader = loadedReplay->header;
-        ffxivReplay->chapters = loadedReplay->chapters;
-        ffxivReplay->dataLoadType = 0;
+        Common.FFXIVReplay->replayHeader = loadedReplay->header;
+        Common.FFXIVReplay->chapters = loadedReplay->chapters;
+        Common.FFXIVReplay->dataLoadType = 0;
 
         ARealmRecorded.Config.LastLoadedReplay = path;
         return true;
@@ -373,7 +322,7 @@ public unsafe class Game
         return true;
     }
 
-    public static Structures.FFXIVReplay.ReplayFile* ReadReplay(string path)
+    public static FFXIVReplay.ReplayFile* ReadReplay(string path)
     {
         var ptr = nint.Zero;
         var allocated = false;
@@ -389,7 +338,7 @@ public unsafe class Game
         }
         catch (Exception e)
         {
-            PluginLog.Error($"Failed to read replay {path}\n{e}");
+            DalamudApi.LogError($"Failed to read replay {path}\n{e}");
 
             if (allocated)
             {
@@ -398,41 +347,41 @@ public unsafe class Game
             }
         }
 
-        return (Structures.FFXIVReplay.ReplayFile*)ptr;
+        return (FFXIVReplay.ReplayFile*)ptr;
     }
 
-    public static Structures.FFXIVReplay.ReplayFile? ReadReplayHeaderAndChapters(string path)
+    public static FFXIVReplay.ReplayFile? ReadReplayHeaderAndChapters(string path)
     {
         try
         {
             using var fs = File.OpenRead(path);
-            var size = sizeof(Structures.FFXIVReplay.Header) + sizeof(Structures.FFXIVReplay.ChapterArray);
+            var size = sizeof(FFXIVReplay.Header) + sizeof(FFXIVReplay.ChapterArray);
             var bytes = new byte[size];
             if (fs.Read(bytes, 0, size) != size)
                 return null;
             fixed (byte* ptr = &bytes[0])
-                return *(Structures.FFXIVReplay.ReplayFile*)ptr;
+                return *(FFXIVReplay.ReplayFile*)ptr;
         }
         catch (Exception e)
         {
-            PluginLog.Error($"Failed to read replay header and chapters {path}\n{e}");
+            DalamudApi.LogError($"Failed to read replay header and chapters {path}\n{e}");
             return null;
         }
     }
 
     public static void FixNextReplaySaveSlot()
     {
-        if (ARealmRecorded.Config.MaxAutoRenamedReplays <= 0 && !ffxivReplay->savedReplayHeaders[ffxivReplay->nextReplaySaveSlot].IsLocked) return;
+        if (ARealmRecorded.Config.MaxAutoRenamedReplays <= 0 && !Common.FFXIVReplay->savedReplayHeaders[Common.FFXIVReplay->nextReplaySaveSlot].IsLocked) return;
 
         for (byte i = 0; i < 3; i++)
         {
             if (i != 2)
             {
-                var header = ffxivReplay->savedReplayHeaders[i];
+                var header = Common.FFXIVReplay->savedReplayHeaders[i];
                 if (header.IsLocked) continue;
             }
 
-            ffxivReplay->nextReplaySaveSlot = i;
+            Common.FFXIVReplay->nextReplaySaveSlot = i;
             return;
         }
     }
@@ -440,7 +389,7 @@ public unsafe class Game
     public static byte FindPreviousChapterType(byte chapter, byte type)
     {
         for (byte i = chapter; i > 0; i--)
-            if (ffxivReplay->chapters[i]->type == type) return i;
+            if (Common.FFXIVReplay->chapters[i]->type == type) return i;
         return 0;
     }
 
@@ -448,8 +397,8 @@ public unsafe class Game
 
     public static byte FindNextChapterType(byte chapter, byte type)
     {
-        for (byte i = (byte)(chapter + 1); i < ffxivReplay->chapters.length; i++)
-            if (ffxivReplay->chapters[i]->type == type) return i;
+        for (byte i = (byte)(chapter + 1); i < Common.FFXIVReplay->chapters.length; i++)
+            if (Common.FFXIVReplay->chapters[i]->type == type) return i;
         return 0;
     }
 
@@ -460,7 +409,7 @@ public unsafe class Game
         var foundPreviousStart = false;
         for (byte i = chapter; i > 0; i--)
         {
-            if (ffxivReplay->chapters[i]->type != 2) continue;
+            if (Common.FFXIVReplay->chapters[i]->type != 2) continue;
 
             if (foundPreviousStart)
                 return i;
@@ -473,18 +422,18 @@ public unsafe class Game
 
     public static byte FindPreviousChapterFromTime(uint ms)
     {
-        for (byte i = (byte)(ffxivReplay->chapters.length - 1); i > 0; i--)
-            if (ffxivReplay->chapters[i]->ms <= ms) return i;
+        for (byte i = (byte)(Common.FFXIVReplay->chapters.length - 1); i > 0; i--)
+            if (Common.FFXIVReplay->chapters[i]->ms <= ms) return i;
         return 0;
     }
 
-    public static byte GetCurrentChapter() => FindPreviousChapterFromTime((uint)(ffxivReplay->seek * 1000));
+    public static byte GetCurrentChapter() => FindPreviousChapterFromTime((uint)(Common.FFXIVReplay->seek * 1000));
 
-    public static Structures.FFXIVReplay.ReplayDataSegment* FindNextDataSegment(uint ms, out uint offset)
+    public static FFXIVReplay.ReplayDataSegment* FindNextDataSegment(uint ms, out uint offset)
     {
         offset = 0;
 
-        Structures.FFXIVReplay.ReplayDataSegment* segment;
+        FFXIVReplay.ReplayDataSegment* segment;
         while ((segment = loadedReplay->GetDataSegment(offset)) != null)
         {
             if (segment->ms >= ms) return segment;
@@ -496,46 +445,46 @@ public unsafe class Game
 
     public static void JumpToChapter(byte chapter)
     {
-        var jumpChapter = ffxivReplay->chapters[chapter];
+        var jumpChapter = Common.FFXIVReplay->chapters[chapter];
         if (jumpChapter == null) return;
-        ffxivReplay->overallDataOffset = jumpChapter->offset;
-        ffxivReplay->seek = jumpChapter->ms / 1000f;
+        Common.FFXIVReplay->overallDataOffset = jumpChapter->offset;
+        Common.FFXIVReplay->seek = jumpChapter->ms / 1000f;
     }
 
     public static void JumpToTime(uint ms)
     {
         var segment = FindNextDataSegment(ms, out var offset);
         if (segment == null) return;
-        ffxivReplay->overallDataOffset = offset;
-        ffxivReplay->seek = segment->ms / 1000f;
+        Common.FFXIVReplay->overallDataOffset = offset;
+        Common.FFXIVReplay->seek = segment->ms / 1000f;
     }
 
     public static void JumpToTimeBeforeChapter(byte chapter, uint ms)
     {
-        var jumpChapter = ffxivReplay->chapters[chapter];
+        var jumpChapter = Common.FFXIVReplay->chapters[chapter];
         if (jumpChapter == null) return;
         JumpToTime(jumpChapter->ms > ms ? jumpChapter->ms - ms : 0);
     }
 
     public static void SeekToTime(uint ms)
     {
-        if (IsLoadingChapter) return;
+        if (Common.FFXIVReplay->IsLoadingChapter) return;
 
         var prevChapter = FindPreviousChapterFromTime(ms);
         var segment = FindNextDataSegment(ms, out var offset);
         if (segment == null) return;
 
         seekingOffset = offset;
-        forceFastForwardReplacer.Enable();
-        if (ffxivReplay->seek * 1000 < segment->ms && prevChapter == GetCurrentChapter())
-            OnSetChapterHook.Original(ffxivReplay, prevChapter);
+        forceFastForwardPatch.Enable();
+        if (Common.FFXIVReplay->seek * 1000 < segment->ms && prevChapter == GetCurrentChapter())
+            FFXIVReplay.onSetChapter.Original(Common.FFXIVReplay, prevChapter);
         else
-            SetChapter(prevChapter);
+            Common.FFXIVReplay->SetChapter(prevChapter);
     }
 
     public static void ReplaySection(byte from, byte to)
     {
-        if (from != 0 && ffxivReplay->overallDataOffset < ffxivReplay->chapters[from]->offset)
+        if (from != 0 && Common.FFXIVReplay->overallDataOffset < Common.FFXIVReplay->chapters[from]->offset)
             JumpToChapter(from);
 
         seekingChapter = to;
@@ -564,7 +513,7 @@ public unsafe class Game
         ReplaySection(GetPreviousStartChapter((byte)quickLoadChapter), (byte)quickLoadChapter);
     }
 
-    public static List<(FileInfo, Structures.FFXIVReplay.ReplayFile)> GetReplayList()
+    public static List<(FileInfo, FFXIVReplay.ReplayFile)> GetReplayList()
     {
         try
         {
@@ -604,7 +553,7 @@ public unsafe class Game
         }
         catch (Exception e)
         {
-            ARealmRecorded.PrintError($"Failed to rename replay\n{e}");
+            DalamudApi.PrintError($"Failed to rename replay\n{e}");
         }
     }
 
@@ -621,7 +570,7 @@ public unsafe class Game
             var fileName = GetReplaySlotName(currentRecordingSlot);
             var (file, _) = GetReplayList().First(t => t.Item1.Name == fileName);
 
-            var name = $"{bannedFolderCharacters.Replace(ffxivReplay->contentTitle.ToString(), string.Empty)} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
+            var name = $"{bannedFolderCharacters.Replace(Common.FFXIVReplay->contentTitle.ToString(), string.Empty)} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
             file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
 
             var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
@@ -632,11 +581,11 @@ public unsafe class Game
             }
 
             GetReplayList();
-            ffxivReplay->savedReplayHeaders[currentRecordingSlot] = new Structures.FFXIVReplay.Header();
+            Common.FFXIVReplay->savedReplayHeaders[currentRecordingSlot] = new FFXIVReplay.Header();
         }
         catch (Exception e)
         {
-            ARealmRecorded.PrintError($"Failed to rename replay\n{e}");
+            DalamudApi.PrintError($"Failed to rename replay\n{e}");
         }
     }
 
@@ -668,7 +617,7 @@ public unsafe class Game
         }
         catch (Exception e)
         {
-            ARealmRecorded.PrintError($"Failed to delete replay\n{e}");
+            DalamudApi.PrintError($"Failed to delete replay\n{e}");
         }
     }
 
@@ -723,7 +672,7 @@ public unsafe class Game
                 catch { }
             }
 
-            ARealmRecorded.PrintError($"Failed to archive replays\n{e}");
+            DalamudApi.PrintError($"Failed to archive replays\n{e}");
         }
 
         GetReplayList();
@@ -736,19 +685,19 @@ public unsafe class Game
         DisplaySelectedDutyRecording(agent);
     }
 
-    public static void SetDutyRecorderMenuSelection(nint agent, string path, Structures.FFXIVReplay.Header header)
+    public static void SetDutyRecorderMenuSelection(nint agent, string path, FFXIVReplay.Header header)
     {
         header.localCID = DalamudApi.ClientState.LocalContentId;
         LastSelectedReplay = path;
         lastSelectedHeader = header;
-        var prevHeader = ffxivReplay->savedReplayHeaders[0];
-        ffxivReplay->savedReplayHeaders[0] = header;
+        var prevHeader = Common.FFXIVReplay->savedReplayHeaders[0];
+        Common.FFXIVReplay->savedReplayHeaders[0] = header;
         SetDutyRecorderMenuSelection(agent, 0);
-        ffxivReplay->savedReplayHeaders[0] = prevHeader;
+        Common.FFXIVReplay->savedReplayHeaders[0] = prevHeader;
         *(byte*)(agent + 0x2C) = 100;
     }
 
-    public static void CopyReplayIntoSlot(nint agent, FileInfo file, Structures.FFXIVReplay.Header header, byte slot)
+    public static void CopyReplayIntoSlot(nint agent, FileInfo file, FFXIVReplay.Header header, byte slot)
     {
         if (slot > 2) return;
 
@@ -756,26 +705,26 @@ public unsafe class Game
         {
             file.CopyTo(Path.Combine(replayFolder, GetReplaySlotName(slot)), true);
             header.localCID = DalamudApi.ClientState.LocalContentId;
-            ffxivReplay->savedReplayHeaders[slot] = header;
+            Common.FFXIVReplay->savedReplayHeaders[slot] = header;
             SetDutyRecorderMenuSelection(agent, slot);
             GetReplayList();
         }
         catch (Exception e)
         {
-            ARealmRecorded.PrintError($"Failed to copy replay to slot {slot + 1}\n{e}");
+            DalamudApi.PrintError($"Failed to copy replay to slot {slot + 1}\n{e}");
         }
     }
 
     public static void SetSavedReplayCIDs(ulong cID)
     {
-        if (ffxivReplay->savedReplayHeaders == null) return;
+        if (Common.FFXIVReplay->savedReplayHeaders == null) return;
 
         for (int i = 0; i < 3; i++)
         {
-            var header = ffxivReplay->savedReplayHeaders[i];
+            var header = Common.FFXIVReplay->savedReplayHeaders[i];
             if (!header.IsValid) continue;
             header.localCID = cID;
-            ffxivReplay->savedReplayHeaders[i] = header;
+            Common.FFXIVReplay->savedReplayHeaders[i] = header;
         }
     }
 
@@ -808,7 +757,7 @@ public unsafe class Game
         var offset = 0u;
         var totalPackets = 0u;
 
-        Structures.FFXIVReplay.ReplayDataSegment* segment;
+        FFXIVReplay.ReplayDataSegment* segment;
         while ((segment = replay->GetDataSegment(offset)) != null)
         {
             opcodeCount.TryGetValue(segment->opcode, out var count);
@@ -821,76 +770,43 @@ public unsafe class Game
 
         Marshal.FreeHGlobal((nint)replay);
 
-        PluginLog.Information("-------------------");
-        PluginLog.Information($"Opcodes inside: {path} (Total: [{opcodeCount.Count}] {totalPackets})");
+        DalamudApi.LogInfo("-------------------");
+        DalamudApi.LogInfo($"Opcodes inside: {path} (Total: [{opcodeCount.Count}] {totalPackets})");
         foreach (var (opcode, count) in opcodeCount)
-            PluginLog.Information($"[{opcode:X}] {count} ({opcodeLengths[opcode]})");
-        PluginLog.Information("-------------------");
+            DalamudApi.LogInfo($"[{opcode:X}] {count} ({opcodeLengths[opcode]})");
+        DalamudApi.LogInfo("-------------------");
     }
-
-    // 48 89 5C 24 08 57 48 83 EC 20 33 FF 48 8B D9 89 39 48 89 79 08 ctor
-    // E8 ?? ?? ?? ?? 48 8D 8B 48 0B 00 00 E8 ?? ?? ?? ?? 48 8D 8B 38 0B 00 00 dtor
-    // 40 53 48 83 EC 20 80 A1 ?? ?? ?? ?? F3 Initialize
-    // 40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 75 09 Update
-    // 48 83 EC 38 0F B6 91 ?? ?? ?? ?? 0F B6 C2 RequestEndPlayback
-    // E8 ?? ?? ?? ?? EB 10 41 83 78 04 00 EndPlayback
-    // 48 89 5C 24 10 55 48 8B EC 48 81 EC 80 00 00 00 48 8B 05 Something to do with loading
-    // E8 ?? ?? ?? ?? 3C 40 73 4A GetCurrentChapter
-    // F6 81 ?? ?? ?? ?? 04 74 11 SetTimescale (No longer used by anything)
-    // 40 53 48 83 EC 20 F3 0F 10 81 ?? ?? ?? ?? 48 8B D9 F3 0F 10 0D SetSoundTimescale1? Doesn't seem to work (Last function)
-    // E8 ?? ?? ?? ?? 44 0F B6 D8 C7 03 02 00 00 00 Function handling the UI buttons
 
     public static void Initialize()
     {
-        // TODO change back to static whenever support is added
-        //SignatureHelper.Initialise(typeof(Game));
-        SignatureHelper.Initialise(new Game());
-        InitializeRecordingHook.Enable();
-        PlaybackUpdateHook.Enable();
-        RequestPlaybackHook.Enable();
-        BeginPlaybackHook.Enable();
-        GetReplayDataSegmentHook.Enable();
-        OnSetChapterHook.Enable();
-        ExecuteCommandHook.Enable();
-        DisplayRecordingOnDTRBarHook.Enable();
-        EventBeginHook.Enable();
-        RsvReceiveHook.Enable();
-        RsfReceiveHook.Enable();
-        DispatchPacketHook.Enable();
+        if (!Common.IsValid(Common.FFXIVReplay))
+            throw new ApplicationException("FFXIVReplay is not initialized!");
 
-        waymarkToggle += 0x48;
+        FFXIVReplay.initializeRecording.CreateHook(InitializeRecordingDetour);
+        FFXIVReplay.playbackUpdate.CreateHook(PlaybackUpdateDetour);
+        FFXIVReplay.requestPlayback.CreateHook(RequestPlaybackDetour);
+        FFXIVReplay.beginPlayback.CreateHook(BeginPlaybackDetour);
+        FFXIVReplay.getReplayDataSegment.CreateHook(GetReplayDataSegmentDetour);
+        FFXIVReplay.onSetChapter.CreateHook(OnSetChapterDetour);
+        FFXIVReplay.replayPacket.CreateHook(ReplayPacketDetour);
 
         SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
 
-        if (InPlayback && ffxivReplay->fileStream != nint.Zero && *(long*)ffxivReplay->fileStream == 0)
+        if (Common.FFXIVReplay->InPlayback && Common.FFXIVReplay->fileStream != nint.Zero && *(long*)Common.FFXIVReplay->fileStream == 0)
             LoadReplay(ARealmRecorded.Config.LastLoadedReplay);
     }
 
     public static void Dispose()
     {
-        InitializeRecordingHook?.Dispose();
-        PlaybackUpdateHook?.Dispose();
-        RequestPlaybackHook?.Dispose();
-        BeginPlaybackHook?.Dispose();
-        GetReplayDataSegmentHook?.Dispose();
-        OnSetChapterHook?.Dispose();
-        ExecuteCommandHook?.Dispose();
-        DisplayRecordingOnDTRBarHook?.Dispose();
-        ContentDirectorTimerUpdateHook?.Dispose();
-        EventBeginHook?.Dispose();
-        RsvReceiveHook?.Dispose();
-        RsfReceiveHook?.Dispose();
-        DispatchPacketHook?.Dispose();
-
-        if (ffxivReplay != null)
+        if (Common.FFXIVReplay != null)
             SetSavedReplayCIDs(0);
 
         if (loadedReplay == null) return;
 
-        if (InPlayback)
+        if (Common.FFXIVReplay->InPlayback)
         {
-            ffxivReplay->playbackControls |= 8; // Pause
-            ARealmRecorded.PrintError("Plugin was unloaded, playback will be broken if the plugin or replay is not reloaded.");
+            Common.FFXIVReplay->playbackControls |= 8; // Pause
+            DalamudApi.PrintError("Plugin was unloaded, playback will be broken if the plugin or replay is not reloaded.");
         }
 
         Marshal.FreeHGlobal((nint)loadedReplay);

@@ -9,6 +9,7 @@ using Dalamud.Interface;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using Hypostasis.Game.Structures;
 using ImGuiNET;
 
 namespace ARealmRecorded;
@@ -79,8 +80,7 @@ public static unsafe class PluginUI
             needSort = true;
         }
         ImGui.PopFont();
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Archive saved unplayable replays.");
+        ImGuiEx.SetItemTooltip("Archive saved unplayable replays.");
         ImGui.PushFont(UiBuilder.IconFont);
         ImGui.SameLine();
         if (ImGui.Button(FontAwesomeIcon.Cog.ToIconString()))
@@ -284,16 +284,13 @@ public static unsafe class PluginUI
         var save = false;
 
         save |= ImGui.Checkbox("Enable Recording Icon", ref ARealmRecorded.Config.EnableRecordingIcon);
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Enables the game's recording icon next to the world / time information (Server info bar).");
+        ImGuiEx.SetItemTooltip("Enables the game's recording icon next to the world / time information (Server info bar).");
 
         save |= ImGui.InputInt("Max Replays", ref ARealmRecorded.Config.MaxAutoRenamedReplays);
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Max number of replays to keep in the autorenamed folder.");
+        ImGuiEx.SetItemTooltip("Max number of replays to keep in the autorenamed folder.");
 
         save |= ImGui.InputInt("Max Deleted Replays", ref ARealmRecorded.Config.MaxDeletedReplays);
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Max number of replays to keep in the deleted folder.");
+        ImGuiEx.SetItemTooltip("Max number of replays to keep in the deleted folder.");
 
         if (save)
             ARealmRecorded.Config.Save();
@@ -305,7 +302,7 @@ public static unsafe class PluginUI
     {
         if (DalamudApi.GameGui.GameUiHidden || DalamudApi.Condition[ConditionFlag.WatchingCutscene]) return;
 
-        if (!Game.InPlayback)
+        if (!Common.FFXIVReplay->InPlayback)
         {
             loadingPlayback = false;
             loadedPlayback = false;
@@ -314,9 +311,9 @@ public static unsafe class PluginUI
 
         if (!loadedPlayback)
         {
-            if (Game.ffxivReplay->seek != lastSeek)
+            if (Common.FFXIVReplay->seek != lastSeek)
             {
-                lastSeek = Game.ffxivReplay->seek;
+                lastSeek = Common.FFXIVReplay->seek;
                 lastSeekChange.Restart();
             }
             else if (lastSeekChange.ElapsedMilliseconds >= 3_000)
@@ -324,9 +321,9 @@ public static unsafe class PluginUI
                 loadedPlayback = true;
             }
 
-            if (Game.ffxivReplay->u0x6F8 != 0)
+            if (Common.FFXIVReplay->u0x6F8 != 0)
                 loadingPlayback = true;
-            else if (loadingPlayback && Game.ffxivReplay->u0x6F8 == 0)
+            else if (loadingPlayback && Common.FFXIVReplay->u0x6F8 == 0)
                 loadedPlayback = true;
             return;
         }
@@ -341,7 +338,7 @@ public static unsafe class PluginUI
         ImGui.SetNextWindowSize(new Vector2(addonW - addonPadding * 2, 0));
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
-        if (showReplaySettings && !Game.IsLoadingChapter)
+        if (showReplaySettings && !Common.FFXIVReplay->IsLoadingChapter)
         {
             DrawReplaySettings();
             ImGui.Separator();
@@ -352,29 +349,20 @@ public static unsafe class PluginUI
             ImGui.Separator();
         }
 
-        ImGui.PushFont(UiBuilder.IconFont);
-        if (ImGui.Button(FontAwesomeIcon.Users.ToIconString()))
+        if (ImGuiEx.FontButton(FontAwesomeIcon.Users.ToIconString(), UiBuilder.IconFont))
             Framework.Instance()->GetUiModule()->EnterGPose();
-        ImGui.PopFont();
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Enters group pose.");
+        ImGuiEx.SetItemTooltip("Enters group pose.");
 
         ImGui.SameLine();
-        ImGui.PushFont(UiBuilder.IconFont);
-        if (ImGui.Button(FontAwesomeIcon.Video.ToIconString()))
+        if (ImGuiEx.FontButton(FontAwesomeIcon.Video.ToIconString(), UiBuilder.IconFont))
             Framework.Instance()->GetUiModule()->EnterIdleCam(0, DalamudApi.TargetManager.FocusTarget is { } focus ? focus.ObjectId : 0xE0000000);
-        ImGui.PopFont();
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Enters idle camera on the current focus target.");
+        ImGuiEx.SetItemTooltip("Enters idle camera on the current focus target.");
 
         ImGui.SameLine();
         var v = Game.IsWaymarkVisible;
-        ImGui.PushFont(UiBuilder.IconFont);
-        if (ImGui.Button(v ? FontAwesomeIcon.ToggleOn.ToIconString() : FontAwesomeIcon.ToggleOff.ToIconString()))
+        if (ImGuiEx.FontButton(v ? FontAwesomeIcon.ToggleOn.ToIconString() : FontAwesomeIcon.ToggleOff.ToIconString(), UiBuilder.IconFont))
             Game.ToggleWaymarks();
-        ImGui.PopFont();
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip(v ? "Hide waymarks." : "Show waymarks.");
+        ImGuiEx.SetItemTooltip(v ? "Hide waymarks." : "Show waymarks.");
         ImGui.SameLine();
         ImGui.PushFont(UiBuilder.IconFont);
         ImGui.SameLine();
@@ -386,7 +374,7 @@ public static unsafe class PluginUI
         if (ImGui.BeginPopupContextItem(null, ImGuiPopupFlags.MouseButtonLeft))
         {
             if (ImGui.Selectable(FontAwesomeIcon.DoorOpen.ToIconString()))
-                Game.ffxivReplay->overallDataOffset = long.MaxValue;
+                Common.FFXIVReplay->overallDataOffset = long.MaxValue;
             ImGui.EndPopup();
         }
 
@@ -397,8 +385,8 @@ public static unsafe class PluginUI
 #endif
         ImGui.PopFont();
 
-        var seek = Game.ffxivReplay->seek;
-        if (!Game.IsPaused || Game.IsLoadingChapter)
+        var seek = Common.FFXIVReplay->seek;
+        if (!Common.FFXIVReplay->IsPaused || Common.FFXIVReplay->IsLoadingChapter)
         {
             if (seek != lastSeek)
             {
@@ -408,24 +396,24 @@ public static unsafe class PluginUI
             else if (lastSeekChange.ElapsedMilliseconds >= 3_000)
             {
                 ImGui.SameLine();
-                var segment = Game.GetReplayDataSegmentDetour(Game.ffxivReplay);
+                var segment = Game.GetReplayDataSegmentDetour(Common.FFXIVReplay);
                 ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive));
                 if (ImGui.Button("UNSTUCK") && segment != null)
-                    Game.ffxivReplay->overallDataOffset += segment->Length;
+                    Common.FFXIVReplay->overallDataOffset += segment->Length;
                 ImGui.PopStyleColor();
             }
         }
 
-        ImGui.BeginDisabled(Game.IsLoadingChapter);
+        ImGui.BeginDisabled(Common.FFXIVReplay->IsLoadingChapter);
 
         const int restartDelayMS = 12_000;
         var sliderWidth = ImGui.GetContentRegionAvail().X;
-        var startMS = Game.ffxivReplay->chapters[0]->ms;
+        var startMS = Common.FFXIVReplay->chapters[0]->ms;
         var seekMS = Math.Max((int)(seek * 1000), (int)startMS);
-        var lastStartChapterMS = Game.ffxivReplay->chapters[Game.FindPreviousChapterType(2)]->ms;
-        var nextStartChapterMS = Game.ffxivReplay->chapters[Game.FindNextChapterType(2)]->ms;
+        var lastStartChapterMS = Common.FFXIVReplay->chapters[Game.FindPreviousChapterType(2)]->ms;
+        var nextStartChapterMS = Common.FFXIVReplay->chapters[Game.FindNextChapterType(2)]->ms;
         if (lastStartChapterMS >= nextStartChapterMS)
-            nextStartChapterMS = Game.ffxivReplay->replayHeader.ms + startMS;
+            nextStartChapterMS = Common.FFXIVReplay->replayHeader.ms + startMS;
         var currentTime = new TimeSpan(0, 0, 0, 0, (int)(seekMS - lastStartChapterMS));
         ImGui.PushItemWidth(sliderWidth);
         ImGui.PushStyleVar(ImGuiStyleVar.GrabMinSize, 4);
@@ -449,9 +437,9 @@ public static unsafe class PluginUI
 
         ImGui.EndDisabled();
 
-        var speed = Game.ffxivReplay->speed;
+        var speed = Common.FFXIVReplay->speed;
         if (ImGui.SliderFloat("##Speed", ref speed, 0.05f, 10.0f, "%.2fx", ImGuiSliderFlags.AlwaysClamp))
-            Game.ffxivReplay->speed = speed;
+            Common.FFXIVReplay->speed = speed;
         ImGui.PopItemWidth();
 
         for (int i = 0; i < presetSpeeds.Length; i++)
@@ -461,7 +449,7 @@ public static unsafe class PluginUI
 
             var s = presetSpeeds[i];
             if (ImGui.Button($"{s}x"))
-                Game.ffxivReplay->speed = s == Game.ffxivReplay->speed ? 1 : s;
+                Common.FFXIVReplay->speed = s == Common.FFXIVReplay->speed ? 1 : s;
         }
 
         var customSpeed = ARealmRecorded.Config.CustomSpeedPreset;
@@ -469,7 +457,7 @@ public static unsafe class PluginUI
         ImGui.Dummy(Vector2.Zero);
         ImGui.SameLine();
         if (ImGui.Button($"{customSpeed}x"))
-            Game.ffxivReplay->speed = customSpeed == Game.ffxivReplay->speed ? 1 : customSpeed;
+            Common.FFXIVReplay->speed = customSpeed == Common.FFXIVReplay->speed ? 1 : customSpeed;
 
         ImGui.End();
     }
@@ -480,7 +468,7 @@ public static unsafe class PluginUI
 
         if (ImGui.Checkbox("Hide Own Name (Requires Replay Restart)", ref ARealmRecorded.Config.EnableHideOwnName))
         {
-            Game.replaceLocalPlayerNameReplacer.Toggle();
+            Game.replaceLocalPlayerNamePatch.Toggle();
             save = true;
         }
 
@@ -510,10 +498,10 @@ public static unsafe class PluginUI
     [Conditional("DEBUG")]
     private static void DrawDebug()
     {
-        var segment = Game.GetReplayDataSegmentDetour(Game.ffxivReplay);
+        var segment = Game.GetReplayDataSegmentDetour(Common.FFXIVReplay);
         if (segment == null) return;
 
-        ImGui.TextUnformatted($"Offset: {Game.ffxivReplay->overallDataOffset + sizeof(Structures.FFXIVReplay.Header) + sizeof(Structures.FFXIVReplay.ChapterArray):X}");
+        ImGui.TextUnformatted($"Offset: {Common.FFXIVReplay->overallDataOffset + sizeof(FFXIVReplay.Header) + sizeof(FFXIVReplay.ChapterArray):X}");
         ImGui.TextUnformatted($"Opcode: {segment->opcode:X}");
         ImGui.TextUnformatted($"Data Length: {segment->dataLength}");
         ImGui.TextUnformatted($"Time: {segment->ms / 1000f}");
