@@ -10,6 +10,7 @@ using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
 using Dalamud.Memory;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
+using FFXIVClientStructs.FFXIV.Client.System.String;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Hypostasis.Game.Structures;
 
@@ -276,6 +277,26 @@ public static unsafe class Game
                 break;
         }
         return FFXIVReplay.replayPacket.Original(ffxivReplay, segment, data);
+    }
+
+    public delegate nint FormatAddonTextTimestampDelegate(nint raptureTextModule, uint addonSheetRow, int a3, uint hours, uint minutes, uint seconds, uint a7);
+    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 8D 4E 64")]
+    private static Hook<FormatAddonTextTimestampDelegate> FormatAddonTextTimestampHook;
+    private static nint FormatAddonTextTimestampDetour(nint raptureTextModule, uint addonSheetRow, int a3, uint hours, uint minutes, uint seconds, uint a7)
+    {
+        var ret = FormatAddonTextTimestampHook.Original(raptureTextModule, addonSheetRow, a3, hours, minutes, seconds, a7);
+        if (addonSheetRow != 3079 || !DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi) return ret;
+
+        // In this context, a3 is the chapter index + 1, while a7 determines the chapter type name
+        var currentChapterMS = Common.FFXIVReplay->chapters[a3 - 1]->ms;
+        var nextChapterMS = Common.FFXIVReplay->chapters[a3]->ms;
+        if (nextChapterMS < currentChapterMS)
+            nextChapterMS = Common.FFXIVReplay->replayHeader.ms + Common.FFXIVReplay->chapters[0]->ms;
+
+        var timespan = new TimeSpan(0, 0, 0, 0, (int)(nextChapterMS - currentChapterMS));
+        (ret + ret.ReadCString().Length).WriteCString($" ({(int)timespan.TotalMinutes:D2}:{timespan.Seconds:D2})");
+
+        return ret;
     }
 
     public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
