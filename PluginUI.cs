@@ -164,7 +164,7 @@ public static unsafe class PluginUI
                     for (int j = 0; j < replay.chapters.length; j++)
                     {
                         var chapter = replay.chapters[j];
-                        if (chapter->type != 2) continue;
+                        if (chapter->type != 2 && j != 0) continue;
 
                         if (j < replay.chapters.length - 1)
                         {
