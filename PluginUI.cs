@@ -5,6 +5,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.Config;
 using Dalamud.Interface;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
@@ -91,6 +92,12 @@ public static unsafe class PluginUI
             Game.ReadPackets(Game.LastSelectedReplay);
 #endif
         ImGui.PopFont();
+
+        using (ImGuiEx.StyleColorBlock.Begin(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive)))
+        {
+            if (DalamudApi.GameConfig.UiConfig.TryGetBool(nameof(UiConfigOption.ContentsReplayEnable), out var b) && !b && ImGui.Button("RECORDING IS CURRENTLY DISABLED, CLICK HERE TO ENABLE"))
+                DalamudApi.GameConfig.UiConfig.Set(nameof(UiConfigOption.ContentsReplayEnable), true);
+        }
 
         if (!showPluginSettings)
             DrawReplaysTable(agent);
@@ -399,10 +406,12 @@ public static unsafe class PluginUI
             {
                 ImGui.SameLine();
                 var segment = Game.GetReplayDataSegmentDetour(Common.ContentsReplayModule);
-                ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive));
-                if (ImGui.Button("UNSTUCK") && segment != null)
-                    Common.ContentsReplayModule->overallDataOffset += segment->Length;
-                ImGui.PopStyleColor();
+
+                using (ImGuiEx.StyleColorBlock.Begin(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive)))
+                {
+                    if (ImGui.Button("UNSTUCK") && segment != null)
+                        Common.ContentsReplayModule->overallDataOffset += segment->Length;
+                }
             }
         }
 
