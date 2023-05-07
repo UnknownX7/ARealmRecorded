@@ -20,7 +20,7 @@ public class ARealmRecorded : DalamudPlugin<Configuration>, IDalamudPlugin
 
     private static unsafe void OnToast(ref SeString message, ref ToastOptions options, ref bool isHandled)
     {
-        if (isHandled || !Common.FFXIVReplay->IsLoadingChapter && Common.FFXIVReplay->speed < 5) return;
+        if (isHandled || !Common.ContentsReplayModule->IsLoadingChapter && Common.ContentsReplayModule->speed < 5) return;
         isHandled = true;
     }
 

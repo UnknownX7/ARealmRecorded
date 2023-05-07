@@ -302,7 +302,7 @@ public static unsafe class PluginUI
     {
         if (DalamudApi.GameGui.GameUiHidden || DalamudApi.Condition[ConditionFlag.WatchingCutscene]) return;
 
-        if (!Common.FFXIVReplay->InPlayback)
+        if (!Common.ContentsReplayModule->InPlayback)
         {
             loadingPlayback = false;
             loadedPlayback = false;
@@ -313,9 +313,9 @@ public static unsafe class PluginUI
 
         if (!loadedPlayback)
         {
-            if (Common.FFXIVReplay->seek != lastSeek)
+            if (Common.ContentsReplayModule->seek != lastSeek)
             {
-                lastSeek = Common.FFXIVReplay->seek;
+                lastSeek = Common.ContentsReplayModule->seek;
                 lastSeekChange.Restart();
             }
             else if (lastSeekChange.ElapsedMilliseconds >= 3_000)
@@ -323,9 +323,9 @@ public static unsafe class PluginUI
                 loadedPlayback = true;
             }
 
-            if (Common.FFXIVReplay->u0x6F8 != 0)
+            if (Common.ContentsReplayModule->u0x6F8 != 0)
                 loadingPlayback = true;
-            else if (loadingPlayback && Common.FFXIVReplay->u0x6F8 == 0)
+            else if (loadingPlayback && Common.ContentsReplayModule->u0x6F8 == 0)
                 loadedPlayback = true;
             return;
         }
@@ -340,7 +340,7 @@ public static unsafe class PluginUI
         ImGui.SetNextWindowSize(new Vector2(addonW - addonPadding * 2, 0));
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
-        if (showReplaySettings && !Common.FFXIVReplay->IsLoadingChapter)
+        if (showReplaySettings && !Common.ContentsReplayModule->IsLoadingChapter)
         {
             DrawReplaySettings();
             ImGui.Separator();
@@ -376,7 +376,7 @@ public static unsafe class PluginUI
         if (ImGui.BeginPopupContextItem(null, ImGuiPopupFlags.MouseButtonLeft))
         {
             if (ImGui.Selectable(FontAwesomeIcon.DoorOpen.ToIconString()))
-                Common.FFXIVReplay->overallDataOffset = long.MaxValue;
+                Common.ContentsReplayModule->overallDataOffset = long.MaxValue;
             ImGui.EndPopup();
         }
 
@@ -387,8 +387,8 @@ public static unsafe class PluginUI
 #endif
         ImGui.PopFont();
 
-        var seek = Common.FFXIVReplay->seek;
-        if (!Common.FFXIVReplay->IsPaused || Common.FFXIVReplay->IsLoadingChapter)
+        var seek = Common.ContentsReplayModule->seek;
+        if (!Common.ContentsReplayModule->IsPaused || Common.ContentsReplayModule->IsLoadingChapter)
         {
             if (seek != lastSeek)
             {
@@ -398,24 +398,24 @@ public static unsafe class PluginUI
             else if (lastSeekChange.ElapsedMilliseconds >= 3_000)
             {
                 ImGui.SameLine();
-                var segment = Game.GetReplayDataSegmentDetour(Common.FFXIVReplay);
+                var segment = Game.GetReplayDataSegmentDetour(Common.ContentsReplayModule);
                 ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive));
                 if (ImGui.Button("UNSTUCK") && segment != null)
-                    Common.FFXIVReplay->overallDataOffset += segment->Length;
+                    Common.ContentsReplayModule->overallDataOffset += segment->Length;
                 ImGui.PopStyleColor();
             }
         }
 
-        ImGui.BeginDisabled(Common.FFXIVReplay->IsLoadingChapter);
+        ImGui.BeginDisabled(Common.ContentsReplayModule->IsLoadingChapter);
 
         const int restartDelayMS = 12_000;
         var sliderWidth = ImGui.GetContentRegionAvail().X;
-        var startMS = Common.FFXIVReplay->chapters[0]->ms;
+        var startMS = Common.ContentsReplayModule->chapters[0]->ms;
         var seekMS = Math.Max((int)(seek * 1000), (int)startMS);
-        var lastStartChapterMS = Common.FFXIVReplay->chapters[Game.FindPreviousChapterType(2)]->ms;
-        var nextStartChapterMS = Common.FFXIVReplay->chapters[Game.FindNextChapterType(2)]->ms;
+        var lastStartChapterMS = Common.ContentsReplayModule->chapters[Game.FindPreviousChapterType(2)]->ms;
+        var nextStartChapterMS = Common.ContentsReplayModule->chapters[Game.FindNextChapterType(2)]->ms;
         if (lastStartChapterMS >= nextStartChapterMS)
-            nextStartChapterMS = Common.FFXIVReplay->replayHeader.ms + startMS;
+            nextStartChapterMS = Common.ContentsReplayModule->replayHeader.ms + startMS;
         var currentTime = new TimeSpan(0, 0, 0, 0, (int)(seekMS - lastStartChapterMS));
         ImGui.PushItemWidth(sliderWidth);
         ImGui.PushStyleVar(ImGuiStyleVar.GrabMinSize, 4);
@@ -439,9 +439,9 @@ public static unsafe class PluginUI
 
         ImGui.EndDisabled();
 
-        var speed = Common.FFXIVReplay->speed;
+        var speed = Common.ContentsReplayModule->speed;
         if (ImGui.SliderFloat("##Speed", ref speed, 0.05f, 10.0f, "%.2fx", ImGuiSliderFlags.AlwaysClamp))
-            Common.FFXIVReplay->speed = speed;
+            Common.ContentsReplayModule->speed = speed;
         ImGui.PopItemWidth();
 
         for (int i = 0; i < presetSpeeds.Length; i++)
@@ -451,7 +451,7 @@ public static unsafe class PluginUI
 
             var s = presetSpeeds[i];
             if (ImGui.Button($"{s}x"))
-                Common.FFXIVReplay->speed = s == Common.FFXIVReplay->speed ? 1 : s;
+                Common.ContentsReplayModule->speed = s == Common.ContentsReplayModule->speed ? 1 : s;
         }
 
         var customSpeed = ARealmRecorded.Config.CustomSpeedPreset;
@@ -459,7 +459,7 @@ public static unsafe class PluginUI
         ImGui.Dummy(Vector2.Zero);
         ImGui.SameLine();
         if (ImGui.Button($"{customSpeed}x"))
-            Common.FFXIVReplay->speed = customSpeed == Common.FFXIVReplay->speed ? 1 : customSpeed;
+            Common.ContentsReplayModule->speed = customSpeed == Common.ContentsReplayModule->speed ? 1 : customSpeed;
 
         ImGui.End();
     }
@@ -500,10 +500,10 @@ public static unsafe class PluginUI
     [Conditional("DEBUG")]
     private static void DrawDebug()
     {
-        var segment = Game.GetReplayDataSegmentDetour(Common.FFXIVReplay);
+        var segment = Game.GetReplayDataSegmentDetour(Common.ContentsReplayModule);
         if (segment == null) return;
 
-        ImGui.TextUnformatted($"Offset: {Common.FFXIVReplay->overallDataOffset + sizeof(FFXIVReplay.Header) + sizeof(FFXIVReplay.ChapterArray):X}");
+        ImGui.TextUnformatted($"Offset: {Common.ContentsReplayModule->overallDataOffset + sizeof(FFXIVReplay.Header) + sizeof(FFXIVReplay.ChapterArray):X}");
         ImGui.TextUnformatted($"Opcode: {segment->opcode:X}");
         ImGui.TextUnformatted($"Data Length: {segment->dataLength}");
         ImGui.TextUnformatted($"Time: {segment->ms / 1000f}");
