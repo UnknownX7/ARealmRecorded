@@ -44,7 +44,7 @@ public static unsafe class PluginUI
     {
         if (DalamudApi.GameGui.GameUiHidden) return;
 
-        var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting", 1);
+        var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting");
         if (addon == null || !addon->IsVisible || (addon->Flags & 16) == 0) return;
 
         var agent = DalamudApi.GameGui.FindAgentInterface((nint)addon);
@@ -309,6 +309,8 @@ public static unsafe class PluginUI
             return;
         }
 
+        if (DalamudApi.GameGui.GetAddonByName("TalkSubtitle") != nint.Zero) return; // Hide during cutscenes
+
         if (!loadedPlayback)
         {
             if (Common.FFXIVReplay->seek != lastSeek)
@@ -328,7 +330,7 @@ public static unsafe class PluginUI
             return;
         }
 
-        var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplayPlayer", 1);
+        var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplayPlayer");
         if (addon == null) return;
 
         var addonW = addon->RootNode->GetWidth() * addon->Scale;
