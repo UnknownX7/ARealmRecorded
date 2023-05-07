@@ -57,8 +57,7 @@ public static unsafe class Game
     private static readonly AsmPatch removeProcessingLimitPatch2 = new("77 57 48 8B 0D ?? ?? ?? ?? 33 C0", new byte?[] { 0x90, 0x90 }, true);
     private static readonly AsmPatch forceFastForwardPatch = new("0F 83 ?? ?? ?? ?? 0F B7 47 02 4C 8D 47 0C", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
     private static readonly AsmPatch instantFadeOutPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48 8B 0D", new byte?[] { null, null, 0x02, 0x90 }, true); // lea r8d, [rdx+0A] -> lea r8d, [rdx]
-
-    public static readonly AsmPatch replaceLocalPlayerNamePatch = new("F6 05 ?? ?? ?? ?? 04 74 ?? 45 33 C0 33 D2 49 8B CE E8 ?? ?? ?? ?? 84 C0 75 ??", "?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 90 90", ARealmRecorded.Config.EnableHideOwnName);
+    public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", new byte?[] { 0x90, 0x90 }, ARealmRecorded.Config.EnableHideOwnName);
 
     [HypostasisSignatureInjection("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 0E", Static = true, Offset = 0x48)]
     private static byte* waymarkToggle; // Actually a uint, but only seems to use the first 2 bits
