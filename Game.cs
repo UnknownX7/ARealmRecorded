@@ -10,6 +10,8 @@ using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Config;
 using Dalamud.Hooking;
 using Dalamud.Memory;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using Hypostasis.Game.Structures;
 
@@ -27,9 +29,9 @@ public static unsafe class Game
     public static string LastSelectedReplay { get; private set; }
     private static FFXIVReplay.Header lastSelectedHeader;
 
-    private static int quickLoadChapter = -1;
-    private static int seekingChapter = 0;
-    private static uint seekingOffset = 0;
+    private static byte quickLoadChapter;
+    private static byte seekingChapter;
+    private static uint seekingOffset;
 
     private static int currentRecordingSlot = -1;
     private static readonly Regex bannedFolderCharacters = new("[\\\\\\/:\\*\\?\"\\<\\>\\|\u0000-\u001F]");
@@ -68,6 +70,10 @@ public static unsafe class Game
     [HypostasisSignatureInjection("48 89 5C 24 10 57 48 81 EC 70 04 00 00")]
     private static delegate* unmanaged<nint, void> displaySelectedDutyRecording;
     public static void DisplaySelectedDutyRecording(nint agent) => displaySelectedDutyRecording(agent);
+
+    [HypostasisSignatureInjection("83 FA 64 0F 8D")]
+    private static delegate* unmanaged<CharacterManager*, int, void> deleteCharacterAtIndex;
+    public static void DeleteCharacterAtIndex(int i) => deleteCharacterAtIndex(CharacterManager.Instance(), i);
 
     private static void InitializeRecordingDetour(ContentsReplayModule* contentsReplayModule)
     {
@@ -151,8 +157,8 @@ public static unsafe class Game
 
         if (quickLoadChapter < 2) return;
 
-        var seekedTime = contentsReplayModule->chapters[seekingChapter]->ms / 1000f;
-        if (seekedTime > contentsReplayModule->seek) return;
+        var seekedTime = contentsReplayModule->chapters[seekingChapter]->ms;
+        if (seekedTime > contentsReplayModule->seek.ToMilliseconds()) return;
 
         DoQuickLoad();
     }
@@ -179,10 +185,10 @@ public static unsafe class Game
     {
         ContentsReplayModule.onSetChapter.Original(contentsReplayModule, chapter);
 
-        if (!ARealmRecorded.Config.EnableQuickLoad || chapter <= 0 || contentsReplayModule->chapters.length < 2) return;
+        if (!ARealmRecorded.Config.EnableQuickLoad || chapter <= 0 || contentsReplayModule->chapters.length < 2 || GetCurrentChapter() + 1 == chapter) return;
 
         quickLoadChapter = chapter;
-        seekingChapter = -1;
+        seekingChapter = 0;
         DoQuickLoad();
     }
 
@@ -509,28 +515,36 @@ public static unsafe class Game
 
         seekingChapter = to;
         if (seekingChapter >= quickLoadChapter)
-            quickLoadChapter = -1;
+            quickLoadChapter = 0;
     }
 
     public static void DoQuickLoad()
     {
-        if (seekingChapter < 0)
+        if (seekingChapter == 0)
         {
             ReplaySection(0, 1);
             return;
         }
 
-        var nextEvent = FindNextChapterType((byte)seekingChapter, 4);
+        var nextEvent = FindNextChapterType(seekingChapter, 4);
         if (nextEvent != 0 && nextEvent < quickLoadChapter - 1)
         {
             var nextCountdown = FindNextChapterType(nextEvent, 1);
             if (nextCountdown == 0 || nextCountdown > nextEvent + 2)
-                nextCountdown = (byte)(nextEvent + 1);
+                nextCountdown = (byte)(nextEvent + 2);
             ReplaySection(nextEvent, nextCountdown);
             return;
         }
 
-        ReplaySection(GetPreviousStartChapter((byte)quickLoadChapter), (byte)quickLoadChapter);
+        for (int i = 0; i < 100; i++)
+        {
+            var o = (BattleChara*)CharacterManager.Instance()->BattleCharaArray[i];
+            if (o != null && o->Character.GameObject.GetObjectKind() == (byte)ObjectKind.BattleNpc)
+                DeleteCharacterAtIndex(i);
+        }
+
+        JumpToTimeBeforeChapter(FindPreviousChapterType(quickLoadChapter, 2), 15_000);
+        ReplaySection(0, quickLoadChapter);
     }
 
     public static List<(FileInfo, FFXIVReplay)> GetReplayList()
