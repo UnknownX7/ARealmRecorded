@@ -1,7 +1,6 @@
 ﻿using Dalamud.Game.Gui.Toast;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin;
-using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 
 namespace ARealmRecorded;
 
@@ -17,7 +16,7 @@ public class ARealmRecorded : DalamudPlugin<Configuration>, IDalamudPlugin
         DalamudApi.ToastGui.Toast += OnToast;
     }
 
-    protected override unsafe void ToggleConfig() => AgentModule.Instance()->GetAgentByInternalId(AgentId.ContentsReplaySetting)->Show();
+    protected override unsafe void ToggleConfig() => Common.UIModule->ExecuteMainCommand(76);
 
     protected override void Draw() => PluginUI.Draw();
 
