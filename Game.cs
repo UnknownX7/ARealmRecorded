@@ -252,19 +252,13 @@ public static unsafe class Game
     {
         if (Common.ContentsReplayModule->IsSavingPackets)
         {
-            //PluginLog.Debug($"Recording {rsfBuffer.Count} RSF packets");
-            foreach (var rsf in rsfBuffer)
-            {
-                fixed (byte* data = rsf)
-                    Common.ContentsReplayModule->WritePacket(0xE000_0000, RsfOpcode, data, (ushort)rsf.Length);
-            }
+            //DalamudApi.LogDebug($"Recording {rsfBuffer.Count} RSF packets");
+            foreach (var data in rsfBuffer)
+                Common.ContentsReplayModule->WritePacket(0xE000_0000, RsfOpcode, data);
 
-            //PluginLog.Debug($"Recording {rsvBuffer.Count} RSV packets");
-            foreach (var rsv in rsvBuffer)
-            {
-                fixed (byte* data = rsv)
-                    Common.ContentsReplayModule->WritePacket(0xE000_0000, RsvOpcode, data, (ushort)rsv.Length);
-            }
+            //DalamudApi.LogDebug($"Recording {rsvBuffer.Count} RSV packets");
+            foreach (var data in rsvBuffer)
+                Common.ContentsReplayModule->WritePacket(0xE000_0000, RsvOpcode, data);
         }
 
         rsfBuffer.Clear();
@@ -273,7 +267,7 @@ public static unsafe class Game
 
     private static Bool ReplayPacketDetour(ContentsReplayModule* contentsReplayModule, FFXIVReplay.DataSegment* segment, byte* data)
     {
-        //PluginLog.Debug($"Dispatch:0x{opcode:X}");
+        //DalamudApi.LogDebug($"Replaying: 0x{segment->opcode:X}");
         switch (segment->opcode) {
             case RsvOpcode:
                 RsvReceiveHook.Original((nint)data);
@@ -386,7 +380,7 @@ public static unsafe class Game
             var bytes = new byte[size];
             if (fs.Read(bytes, 0, size) != size)
                 return null;
-            fixed (byte* ptr = &bytes[0])
+            fixed (byte* ptr = bytes)
                 return *(FFXIVReplay*)ptr;
         }
         catch (Exception e)
