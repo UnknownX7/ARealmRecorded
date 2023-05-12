@@ -87,7 +87,7 @@ public static unsafe class ReplayExtensions
     {
         var pulls = 0;
         var longestPull = TimeSpan.Zero;
-        for (int j = 0; j < replay.chapters.length; j++)
+        for (byte j = 0; j < replay.chapters.length; j++)
         {
             var chapter = replay.chapters[j];
             if (chapter->type != 2 && j != 0) continue;
@@ -102,15 +102,7 @@ public static unsafe class ReplayExtensions
                 }
             }
 
-            var nextStartMS = replay.header.ms;
-            for (int k = j + 1; k < replay.chapters.length; k++)
-            {
-                var nextStart = replay.chapters[k];
-                if (nextStart->type != 2) continue;
-                nextStartMS = nextStart->ms;
-                break;
-            }
-
+            var nextStartMS = replay.chapters.FindNextChapterType(j, 2) is var nextStart && nextStart > 0 ? replay.chapters[nextStart]->ms : replay.header.totalMS;
             var ms = (int)(nextStartMS - chapter->ms);
             if (ms > 30_000)
                 pulls++;

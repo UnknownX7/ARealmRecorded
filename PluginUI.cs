@@ -197,7 +197,7 @@ public static unsafe class PluginUI
                         }
                     }
 
-                    ImGui.TextUnformatted($"Length: {new TimeSpan(0, 0, 0, 0, (int)header.ms):hh':'mm':'ss}");
+                    ImGui.TextUnformatted($"Length: {new TimeSpan(0, 0, 0, 0, (int)header.displayedMS):hh':'mm':'ss}");
                     if (pulls > 1)
                     {
                         ImGui.TextUnformatted($"Number of Pulls: {pulls}");
@@ -385,12 +385,11 @@ public static unsafe class PluginUI
 
         const int restartDelayMS = 12_000;
         var sliderWidth = ImGui.GetContentRegionAvail().X;
-        var startMS = Common.ContentsReplayModule->chapters[0]->ms;
-        var seekMS = Math.Max(seek.ToMilliseconds(), (int)startMS);
+        var seekMS = Math.Max(seek.ToMilliseconds(), (int)Common.ContentsReplayModule->chapters[0]->ms);
         var lastStartChapterMS = Common.ContentsReplayModule->chapters[Common.ContentsReplayModule->FindPreviousChapterType(2)]->ms;
         var nextStartChapterMS = Common.ContentsReplayModule->chapters[Common.ContentsReplayModule->FindNextChapterType(2)]->ms;
         if (lastStartChapterMS >= nextStartChapterMS)
-            nextStartChapterMS = Common.ContentsReplayModule->replayHeader.ms + startMS;
+            nextStartChapterMS = Common.ContentsReplayModule->replayHeader.totalMS;
         var currentTime = new TimeSpan(0, 0, 0, 0, (int)(seekMS - lastStartChapterMS));
         ImGui.PushItemWidth(sliderWidth);
         ImGui.PushStyleVar(ImGuiStyleVar.GrabMinSize, 4);

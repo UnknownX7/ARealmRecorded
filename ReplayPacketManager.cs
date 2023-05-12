@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Dalamud.Hooking;
 using Dalamud.Memory;
@@ -9,18 +9,16 @@ namespace ARealmRecorded;
 public abstract unsafe class CustomReplayPacket
 {
     public abstract ushort Opcode { get; }
-
     private List<(uint, byte[])> buffer;
-    public List<(uint, byte[])> Buffer => buffer ??= new();
 
-    public void Write(uint objectID, byte[] data)
+    protected void Write(uint objectID, byte[] data)
     {
         if (!Common.ContentsReplayModule->IsSavingPackets) return;
 
         if (Common.ContentsReplayModule->IsRecording)
             Common.ContentsReplayModule->WritePacket(objectID, Opcode, data);
         else
-            Buffer.Add((objectID, data));
+            (buffer ??= new()).Add((objectID, data));
     }
 
     public void FlushBuffer()

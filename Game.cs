@@ -35,7 +35,7 @@ public static unsafe class Game
     public static string LastSelectedReplay { get; private set; }
     private static FFXIVReplay.Header lastSelectedHeader;
 
-    private static int currentRecordingSlot = -1;
+    private static bool wasRecording = false;
 
     private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28, 29, 30 }; // 22 Event, 26 Eureka, 27 Carnivale
 
@@ -60,6 +60,14 @@ public static unsafe class Game
     [HypostasisSignatureInjection("83 FA 64 0F 8D")]
     private static delegate* unmanaged<CharacterManager*, int, void> deleteCharacterAtIndex;
     public static void DeleteCharacterAtIndex(int i) => deleteCharacterAtIndex(CharacterManager.Instance(), i);
+
+    private static Bool OnLoginDetour(ContentsReplayModule* contentsReplayModule)
+    {
+        var ret = ContentsReplayModule.onLogin.Original(contentsReplayModule);
+        if (DalamudApi.GameConfig.UiConfig.TryGetBool(nameof(UiConfigOption.CutsceneSkipIsContents), out var b) && b)
+            InitializeRecordingDetour(contentsReplayModule);
+        return ret;
+    }
 
     private static void InitializeRecordingDetour(ContentsReplayModule* contentsReplayModule)
     {
@@ -202,7 +210,7 @@ public static unsafe class Game
         var currentChapterMS = Common.ContentsReplayModule->chapters[a3 - 1]->ms;
         var nextChapterMS = Common.ContentsReplayModule->chapters[a3]->ms;
         if (nextChapterMS < currentChapterMS)
-            nextChapterMS = Common.ContentsReplayModule->replayHeader.ms + Common.ContentsReplayModule->chapters[0]->ms;
+            nextChapterMS = Common.ContentsReplayModule->replayHeader.totalMS;
 
         var timespan = new TimeSpan(0, 0, 0, 0, (int)(nextChapterMS - currentChapterMS));
         (ret + ret.ReadCString().Length).WriteCString($" ({(int)timespan.TotalMinutes:D2}:{timespan.Seconds:D2})");
@@ -216,12 +224,12 @@ public static unsafe class Game
     {
         switch (Common.ContentsReplayModule->IsRecording)
         {
-            case true when currentRecordingSlot < 0:
-                currentRecordingSlot = Common.ContentsReplayModule->nextReplaySaveSlot;
+            case true when !wasRecording:
+                wasRecording = true;
                 break;
-            case false when currentRecordingSlot >= 0:
+            case false when wasRecording:
                 AutoRenameReplay();
-                currentRecordingSlot = -1;
+                wasRecording = false;
                 Common.ContentsReplayModule->SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
                 break;
         }
@@ -328,8 +336,7 @@ public static unsafe class Game
 
         try
         {
-            var fileName = GetReplaySlotName(currentRecordingSlot);
-            var (file, _) = GetReplayList().First(t => t.Item1.Name == fileName);
+            var (file, replay) = GetReplayList().MaxBy(t => t.Item1.CreationTime);
 
             var name = $"{bannedFileCharacters.Replace(Common.ContentsReplayModule->contentTitle.ToString(), string.Empty)} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
             file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
@@ -342,7 +349,13 @@ public static unsafe class Game
             }
 
             GetReplayList();
-            Common.ContentsReplayModule->savedReplayHeaders[currentRecordingSlot] = new FFXIVReplay.Header();
+
+            for (int i = 0; i < 3; i++)
+            {
+                if (Common.ContentsReplayModule->savedReplayHeaders[i].timestamp != replay.header.timestamp) continue;
+                Common.ContentsReplayModule->savedReplayHeaders[i] = new FFXIVReplay.Header();
+                break;
+            }
         }
         catch (Exception e)
         {
@@ -530,6 +543,7 @@ public static unsafe class Game
         if (!Common.IsValid(Common.ContentsReplayModule))
             throw new ApplicationException($"{nameof(Common.ContentsReplayModule)} is not initialized!");
 
+        ContentsReplayModule.onLogin.CreateHook(OnLoginDetour);
         ContentsReplayModule.initializeRecording.CreateHook(InitializeRecordingDetour);
         ContentsReplayModule.playbackUpdate.CreateHook(PlaybackUpdateDetour);
         ContentsReplayModule.requestPlayback.CreateHook(RequestPlaybackDetour);
