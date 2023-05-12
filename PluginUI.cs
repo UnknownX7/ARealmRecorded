@@ -165,41 +165,7 @@ public static unsafe class PluginUI
 
                 if (ImGui.IsItemHovered())
                 {
-                    // TODO: This could probably be a function on the chapter structure itself
-                    var pulls = 0;
-                    var longestPull = TimeSpan.Zero;
-                    for (int j = 0; j < replay.chapters.length; j++)
-                    {
-                        var chapter = replay.chapters[j];
-                        if (chapter->type != 2 && j != 0) continue;
-
-                        if (j < replay.chapters.length - 1)
-                        {
-                            var nextChapter = replay.chapters[j + 1];
-                            if (nextChapter->type == 1)
-                            {
-                                chapter = nextChapter;
-                                j++;
-                            }
-                        }
-
-                        var nextStartMS = header.ms;
-                        for (int k = j + 1; k < replay.chapters.length; k++)
-                        {
-                            var nextStart = replay.chapters[k];
-                            if (nextStart->type != 2) continue;
-                            nextStartMS = nextStart->ms;
-                            break;
-                        }
-
-                        var ms = (int)(nextStartMS - chapter->ms);
-                        if (ms > 30_000)
-                            pulls++;
-
-                        var timeSpan = new TimeSpan(0, 0, 0, 0, ms);
-                        if (timeSpan > longestPull)
-                            longestPull = timeSpan;
-                    }
+                    var (pulls, longestPull) = replay.GetPullInfo();
 
                     ImGui.BeginTooltip();
                     ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
@@ -232,7 +198,7 @@ public static unsafe class PluginUI
                     }
 
                     ImGui.TextUnformatted($"Length: {new TimeSpan(0, 0, 0, 0, (int)header.ms):hh':'mm':'ss}");
-                    if (longestPull > TimeSpan.Zero)
+                    if (pulls > 1)
                     {
                         ImGui.TextUnformatted($"Number of Pulls: {pulls}");
                         ImGui.TextUnformatted($"Longest Pull: {longestPull:hh':'mm':'ss}");
@@ -420,9 +386,9 @@ public static unsafe class PluginUI
         const int restartDelayMS = 12_000;
         var sliderWidth = ImGui.GetContentRegionAvail().X;
         var startMS = Common.ContentsReplayModule->chapters[0]->ms;
-        var seekMS = Math.Max((int)(seek * 1000), (int)startMS);
-        var lastStartChapterMS = Common.ContentsReplayModule->chapters[Game.FindPreviousChapterType(2)]->ms;
-        var nextStartChapterMS = Common.ContentsReplayModule->chapters[Game.FindNextChapterType(2)]->ms;
+        var seekMS = Math.Max(seek.ToMilliseconds(), (int)startMS);
+        var lastStartChapterMS = Common.ContentsReplayModule->chapters[Common.ContentsReplayModule->FindPreviousChapterType(2)]->ms;
+        var nextStartChapterMS = Common.ContentsReplayModule->chapters[Common.ContentsReplayModule->FindNextChapterType(2)]->ms;
         if (lastStartChapterMS >= nextStartChapterMS)
             nextStartChapterMS = Common.ContentsReplayModule->replayHeader.ms + startMS;
         var currentTime = new TimeSpan(0, 0, 0, 0, (int)(seekMS - lastStartChapterMS));
@@ -440,9 +406,9 @@ public static unsafe class PluginUI
                 var hoveredTime = new TimeSpan(0, 0, 0, 0, (int)Math.Min(Math.Max((int)((nextStartChapterMS - lastStartChapterMS - restartDelayMS) * hoveredPercent), 0), nextStartChapterMS - lastStartChapterMS));
                 ImGui.SetTooltip(hoveredTime.ToString("hh':'mm':'ss"));
                 if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-                    Game.SeekToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
+                    ReplayManager.SeekToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
                 else if (ARealmRecorded.Config.EnableJumpToTime && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
-                    Game.JumpToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
+                    ReplayManager.JumpToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
             }
         }
 
