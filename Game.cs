@@ -39,12 +39,6 @@ public static unsafe class Game
 
     private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28, 29, 30 }; // 22 Event, 26 Eureka, 27 Carnivale
 
-    private const int RsfSize = 0x48;
-    private const ushort RsfOpcode = 0xF002;
-    private static readonly List<byte[]> rsfBuffer = new();
-    private const ushort RsvOpcode = 0xF001;
-    private static readonly List<byte[]> rsvBuffer = new();
-
     private static readonly AsmPatch alwaysRecordPatch = new("A8 04 75 27 A8 02 74 23 48 8B", new byte?[] { 0xEB, 0x21 }, true); // 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90
     private static readonly AsmPatch removeRecordReadyToastPatch = new("BA CB 07 00 00 48 8B CF E8", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
     private static readonly AsmPatch instantFadeOutPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48 8B 0D", new byte?[] { null, null, 0x02, 0x90 }, true); // lea r8d, [rdx+0A] -> lea r8d, [rdx]
@@ -89,7 +83,7 @@ public static unsafe class Game
         if (contentDirectorOffset > 0)
             ContentDirectorTimerUpdateHook?.Enable();
 
-        FlushRsvRsfBuffers(); // TODO: Look into potential issue with packets received from The Unending Journey being added to replays
+        ReplayPacketManager.FlushBuffers();
     }
 
     public static Bool RequestPlaybackDetour(ContentsReplayModule* contentsReplayModule, byte slot)
@@ -192,56 +186,9 @@ public static unsafe class Game
     private static Hook<EventBeginDelegate> EventBeginHook;
     private static nint EventBeginDetour(nint a1, nint a2) => !Common.ContentsReplayModule->InPlayback || !DalamudApi.GameConfig.UiConfig.TryGetBool(nameof(UiConfigOption.CutsceneSkipIsContents), out var b) || !b ? EventBeginHook.Original(a1, a2) : nint.Zero;
 
-    public delegate Bool RsvReceiveDelegate(nint data);
-    [HypostasisSignatureInjection("44 8B 09 4C 8D 41 34")]
-    private static Hook<RsvReceiveDelegate> RsvReceiveHook;
-    private static Bool RsvReceiveDetour(nint data)
-    {
-        var size = *(int*)data; // Value size
-        var length = size + 0x4 + 0x30; // Package size
-        rsvBuffer.Add(MemoryHelper.ReadRaw(data, length));
-        return RsvReceiveHook.Original(data);
-    }
-
-    public delegate Bool RsfReceiveDelegate(nint data);
-    [HypostasisSignatureInjection("48 8B 11 4C 8D 41 08")]
-    private static Hook<RsfReceiveDelegate> RsfReceiveHook;
-    private static Bool RsfReceiveDetour(nint data)
-    {
-        rsfBuffer.Add(MemoryHelper.ReadRaw(data, RsfSize));
-        return RsfReceiveHook.Original(data);
-    }
-
-    private static void FlushRsvRsfBuffers()
-    {
-        if (Common.ContentsReplayModule->IsSavingPackets)
-        {
-            //DalamudApi.LogDebug($"Recording {rsfBuffer.Count} RSF packets");
-            foreach (var data in rsfBuffer)
-                Common.ContentsReplayModule->WritePacket(0xE000_0000, RsfOpcode, data);
-
-            //DalamudApi.LogDebug($"Recording {rsvBuffer.Count} RSV packets");
-            foreach (var data in rsvBuffer)
-                Common.ContentsReplayModule->WritePacket(0xE000_0000, RsvOpcode, data);
-        }
-
-        rsfBuffer.Clear();
-        rsvBuffer.Clear();
-    }
-
-    private static Bool ReplayPacketDetour(ContentsReplayModule* contentsReplayModule, FFXIVReplay.DataSegment* segment, byte* data)
-    {
-        //DalamudApi.LogDebug($"Replaying: 0x{segment->opcode:X}");
-        switch (segment->opcode) {
-            case RsvOpcode:
-                RsvReceiveHook.Original((nint)data);
-                break;
-            case RsfOpcode:
-                RsfReceiveHook.Original((nint)data);
-                break;
-        }
-        return ContentsReplayModule.replayPacket.Original(contentsReplayModule, segment, data);
-    }
+    private static Bool ReplayPacketDetour(ContentsReplayModule* contentsReplayModule, FFXIVReplay.DataSegment* segment, byte* data) =>
+        ReplayPacketManager.ReplayPacket(segment, data)
+        || ContentsReplayModule.replayPacket.Original(contentsReplayModule, segment, data);
 
     public delegate nint FormatAddonTextTimestampDelegate(nint raptureTextModule, uint addonSheetRow, int a3, uint hours, uint minutes, uint seconds, uint a7);
     [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 8D 4E 64")]

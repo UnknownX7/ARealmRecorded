@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.Gui.Toast;
+using Dalamud.Game.Gui.Toast;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin;
 
@@ -13,6 +13,7 @@ public class ARealmRecorded : DalamudPlugin<Configuration>, IDalamudPlugin
     protected override void Initialize()
     {
         Game.Initialize();
+        ReplayPacketManager.Initialize();
         DalamudApi.ToastGui.Toast += OnToast;
     }
 
