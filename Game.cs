@@ -9,7 +9,6 @@ using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Config;
 using Dalamud.Hooking;
-using Dalamud.Memory;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using Hypostasis.Game.Structures;
@@ -32,7 +31,7 @@ public static unsafe class Game
         set => replayList = value;
     }
 
-    public static string LastSelectedReplay { get; private set; }
+    public static string LastSelectedReplay { get; set; }
     private static FFXIVReplay.Header lastSelectedHeader;
 
     private static bool wasRecording = false;

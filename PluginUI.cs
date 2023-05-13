@@ -19,6 +19,7 @@ public static unsafe class PluginUI
 {
     public static readonly float[] presetSpeeds = { 0.5f, 1, 2, 5, 10, 20 };
 
+    private static bool displayDetachedReplayList = false;
     private static bool needSort = true;
     private static bool showPluginSettings = false;
     private static int editingReplay = -1;
@@ -43,24 +44,39 @@ public static unsafe class PluginUI
 
     public static void DrawExpandedDutyRecorderMenu()
     {
-        if (DalamudApi.GameGui.GameUiHidden) return;
+        var agent = nint.Zero;
+        if (!displayDetachedReplayList)
+        {
+            if (DalamudApi.GameGui.GameUiHidden) return;
 
-        var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting");
-        if (addon == null || !addon->IsVisible || (addon->Flags & 16) == 0) return;
+            var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting");
+            if (addon == null || !addon->IsVisible || (addon->Flags & 16) == 0) return;
 
-        var agent = DalamudApi.GameGui.FindAgentInterface((nint)addon);
-        if (agent == nint.Zero) return;
+            agent = DalamudApi.GameGui.FindAgentInterface((nint)addon);
+            if (agent == nint.Zero) return;
 
-        //var units = AtkStage.GetSingleton()->RaptureAtkUnitManager->AtkUnitManager.FocusedUnitsList;
-        //var count = units.Count;
-        //if (count > 0 && (&units.AtkUnitEntries)[count - 1] != addon) return;
+            //var units = AtkStage.GetSingleton()->RaptureAtkUnitManager->AtkUnitManager.FocusedUnitsList;
+            //var count = units.Count;
+            //if (count > 0 && (&units.AtkUnitEntries)[count - 1] != addon) return;
 
-        var addonW = addon->RootNode->GetWidth() * addon->Scale;
-        var addonH = (addon->RootNode->GetHeight() - 11) * addon->Scale;
-        ImGuiHelpers.ForceNextWindowMainViewport();
-        ImGui.SetNextWindowPos(new(addon->X + addonW, addon->Y));
-        ImGui.SetNextWindowSize(new Vector2(500 * ImGuiHelpers.GlobalScale, addonH));
-        ImGui.Begin("Expanded Duty Recorder", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
+            var addonW = addon->RootNode->GetWidth() * addon->Scale;
+            var addonH = (addon->RootNode->GetHeight() - 11) * addon->Scale;
+            ImGuiHelpers.ForceNextWindowMainViewport();
+            ImGui.SetNextWindowPos(new(addon->X + addonW, addon->Y));
+            ImGui.SetNextWindowSize(new Vector2(500 * ImGuiHelpers.GlobalScale, addonH));
+            ImGui.Begin("##ExpandedContentsReplaySetting", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
+        }
+        else
+        {
+            if (!Common.ContentsReplayModule->InPlayback)
+            {
+                displayDetachedReplayList = false;
+                return;
+            }
+
+            ImGui.SetNextWindowSize(ImGuiHelpers.ScaledVector2(500, 350));
+            ImGui.Begin("Replay List", ref displayDetachedReplayList, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.AlwaysAutoResize);
+        }
 
         if (ImGui.IsWindowAppearing())
             showPluginSettings = false;
@@ -93,10 +109,22 @@ public static unsafe class PluginUI
 #endif
         ImGui.PopFont();
 
-        using (ImGuiEx.StyleColorBlock.Begin(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive)))
+        if (!displayDetachedReplayList)
         {
-            if (DalamudApi.GameConfig.UiConfig.TryGetBool(nameof(UiConfigOption.ContentsReplayEnable), out var b) && !b && ImGui.Button("RECORDING IS CURRENTLY DISABLED, CLICK HERE TO ENABLE"))
-                DalamudApi.GameConfig.UiConfig.Set(nameof(UiConfigOption.ContentsReplayEnable), true);
+            using (ImGuiEx.StyleColorBlock.Begin(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive)))
+            {
+                if (DalamudApi.GameConfig.UiConfig.TryGetBool(nameof(UiConfigOption.ContentsReplayEnable), out var b) && !b && ImGui.Button("RECORDING IS CURRENTLY DISABLED, CLICK HERE TO ENABLE"))
+                    DalamudApi.GameConfig.UiConfig.Set(nameof(UiConfigOption.ContentsReplayEnable), true);
+            }
+        }
+        else
+        {
+            // TODO: Look into why this doesn't work (and block it for unplayable replays)
+            if (ImGui.Button("Load Replay"))
+            {
+                ReplayManager.LoadReplay(Game.LastSelectedReplay);
+                Common.ContentsReplayModule->SetChapter(0);
+            }
         }
 
         if (!showPluginSettings)
@@ -158,8 +186,15 @@ public static unsafe class PluginUI
             {
                 if (!isPlayable)
                     ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
-                if (ImGui.Selectable(autoRenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.LastSelectedReplay && *(byte*)(agent + 0x2C) == 100, ImGuiSelectableFlags.SpanAllColumns))
-                    Game.SetDutyRecorderMenuSelection(agent, path, header);
+
+                if (ImGui.Selectable(autoRenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.LastSelectedReplay && (agent == nint.Zero || *(byte*)(agent + 0x2C) == 100), ImGuiSelectableFlags.SpanAllColumns))
+                {
+                    if (agent != nint.Zero)
+                        Game.SetDutyRecorderMenuSelection(agent, path, header);
+                    else
+                        Game.LastSelectedReplay = path;
+                }
+
                 if (!isPlayable)
                     ImGui.PopStyleColor();
 
@@ -210,11 +245,14 @@ public static unsafe class PluginUI
 
                 if (ImGui.BeginPopupContextItem())
                 {
-                    for (byte j = 0; j < 3; j++)
+                    if (agent != nint.Zero)
                     {
-                        if (!ImGui.Selectable($"Copy to slot #{j + 1}")) continue;
-                        Game.CopyReplayIntoSlot(agent, file, header, j);
-                        needSort = true;
+                        for (byte j = 0; j < 3; j++)
+                        {
+                            if (!ImGui.Selectable($"Copy to slot #{j + 1}")) continue;
+                            Game.CopyReplayIntoSlot(agent, file, header, j);
+                            needSort = true;
+                        }
                     }
 
                     if (ImGui.Selectable("Delete"))
@@ -324,6 +362,11 @@ public static unsafe class PluginUI
             ImGui.Separator();
         }
 
+        //if (ImGuiEx.FontButton(FontAwesomeIcon.List.ToIconString(), UiBuilder.IconFont))
+        //    displayDetachedReplayList ^= true;
+        //ImGuiEx.SetItemTooltip("Display replay list.");
+
+        //ImGui.SameLine();
         if (ImGuiEx.FontButton(FontAwesomeIcon.Users.ToIconString(), UiBuilder.IconFont))
             Framework.Instance()->GetUiModule()->EnterGPose();
         ImGuiEx.SetItemTooltip("Enters group pose.");
@@ -338,6 +381,7 @@ public static unsafe class PluginUI
         if (ImGuiEx.FontButton(v ? FontAwesomeIcon.ToggleOn.ToIconString() : FontAwesomeIcon.ToggleOff.ToIconString(), UiBuilder.IconFont))
             Game.ToggleWaymarks();
         ImGuiEx.SetItemTooltip(v ? "Hide waymarks." : "Show waymarks.");
+
         ImGui.SameLine();
         ImGui.PushFont(UiBuilder.IconFont);
         ImGui.SameLine();
