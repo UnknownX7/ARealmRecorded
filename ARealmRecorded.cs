@@ -19,7 +19,11 @@ public class ARealmRecorded : DalamudPlugin<Configuration>, IDalamudPlugin
 
     protected override unsafe void ToggleConfig() => Common.UIModule->ExecuteMainCommand(76);
 
-    protected override void Draw() => PluginUI.Draw();
+    protected override void Draw()
+    {
+        ReplayListUI.Draw();
+        PlaybackControlsUI.Draw();
+    }
 
     private static unsafe void OnToast(ref SeString message, ref ToastOptions options, ref bool isHandled)
     {

@@ -44,7 +44,7 @@ public static unsafe class ReplayManager
         }
 
         // Absurdly hacky, but it works
-        if (!ARealmRecorded.Config.EnableQuickLoad || ARealmRecorded.Config.MaxSeekDelta <= 100 || contentsReplayModule->seekDelta >= ARealmRecorded.Config.MaxSeekDelta)
+        if (ARealmRecorded.Config.MaxSeekDelta <= 100 || contentsReplayModule->seekDelta >= ARealmRecorded.Config.MaxSeekDelta)
             removeProcessingLimitPatch2.Disable();
         else
             removeProcessingLimitPatch2.Enable();
