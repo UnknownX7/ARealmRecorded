@@ -28,11 +28,13 @@ public static unsafe class PluginUI
     private static bool loadingPlayback = false;
     private static bool loadedPlayback = true;
 
+    private static bool shouldPlaybackControlHide = false;
     private static bool showReplaySettings = false;
     private static bool showDebug = false;
 
     private static float lastSeek = 0;
-    private static readonly Stopwatch lastSeekChange = new();
+    private static bool showUnstuckButton = false;
+    private static readonly Stopwatch unstuckTimer = new();
 
     private static readonly Regex displayNameRegex = new("(.+)[ _]\\d{4}\\.");
 
@@ -81,33 +83,38 @@ public static unsafe class PluginUI
         if (ImGui.IsWindowAppearing())
             showPluginSettings = false;
 
-        ImGui.PushFont(UiBuilder.IconFont);
-        if (ImGui.Button(FontAwesomeIcon.SyncAlt.ToIconString()))
+        using (ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))
         {
-            Game.GetReplayList();
-            needSort = true;
+            if (ImGui.Button(FontAwesomeIcon.SyncAlt.ToIconString()))
+            {
+                Game.GetReplayList();
+                needSort = true;
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button(FontAwesomeIcon.FolderOpen.ToIconString()))
+                Game.OpenReplayFolder();
+
+            ImGui.SameLine();
+            if (ImGui.Button(FontAwesomeIcon.FileArchive.ToIconString()))
+            {
+                Game.ArchiveReplays();
+                needSort = true;
+            }
         }
-        ImGui.SameLine();
-        if (ImGui.Button(FontAwesomeIcon.FolderOpen.ToIconString()))
-            Game.OpenReplayFolder();
-        ImGui.SameLine();
-        if (ImGui.Button(FontAwesomeIcon.FileArchive.ToIconString()))
-        {
-            Game.ArchiveReplays();
-            needSort = true;
-        }
-        ImGui.PopFont();
         ImGuiEx.SetItemTooltip("Archive saved unplayable replays.");
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.SameLine();
-        if (ImGui.Button(FontAwesomeIcon.Cog.ToIconString()))
-            showPluginSettings ^= true;
+
+        using (ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))
+        {
+            ImGui.SameLine();
+            if (ImGui.Button(FontAwesomeIcon.Cog.ToIconString()))
+                showPluginSettings ^= true;
 #if DEBUG
-        ImGui.SameLine();
-        if (ImGui.Button(FontAwesomeIcon.ExclamationTriangle.ToIconString()))
-            Game.ReadPackets(Game.LastSelectedReplay);
+            ImGui.SameLine();
+            if (ImGui.Button(FontAwesomeIcon.ExclamationTriangle.ToIconString()))
+                Game.ReadPackets(Game.LastSelectedReplay);
 #endif
-        ImGui.PopFont();
+        }
 
         if (!displayDetachedReplayList)
         {
@@ -131,6 +138,8 @@ public static unsafe class PluginUI
             DrawReplaysTable(agent);
         else
             DrawPluginSettings();
+
+        ImGui.End();
     }
 
     public static void DrawReplaysTable(nint agent)
@@ -175,71 +184,65 @@ public static unsafe class PluginUI
 
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
-            if (!isPlayable)
-                ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
-            ImGui.TextUnformatted(DateTimeOffset.FromUnixTimeSeconds(header.timestamp).LocalDateTime.ToString(CultureInfo.CurrentCulture));
-            if (!isPlayable)
-                ImGui.PopStyleColor();
+            using (ImGuiEx.StyleColorBlock.Begin(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled), !isPlayable))
+                ImGui.TextUnformatted(DateTimeOffset.FromUnixTimeSeconds(header.timestamp).LocalDateTime.ToString(CultureInfo.CurrentCulture));
             ImGui.TableNextColumn();
 
             if (editingReplay != i)
             {
-                if (!isPlayable)
-                    ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
-
-                if (ImGui.Selectable(autoRenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.LastSelectedReplay && (agent == nint.Zero || *(byte*)(agent + 0x2C) == 100), ImGuiSelectableFlags.SpanAllColumns))
+                using (ImGuiEx.StyleColorBlock.Begin(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled), !isPlayable))
                 {
-                    if (agent != nint.Zero)
-                        Game.SetDutyRecorderMenuSelection(agent, path, header);
-                    else
-                        Game.LastSelectedReplay = path;
+                    if (ImGui.Selectable(autoRenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.LastSelectedReplay && (agent == nint.Zero || *(byte*)(agent + 0x2C) == 100), ImGuiSelectableFlags.SpanAllColumns))
+                    {
+                        if (agent != nint.Zero)
+                            Game.SetDutyRecorderMenuSelection(agent, path, header);
+                        else
+                            Game.LastSelectedReplay = path;
+                    }
                 }
-
-                if (!isPlayable)
-                    ImGui.PopStyleColor();
 
                 if (ImGui.IsItemHovered())
                 {
                     var (pulls, longestPull) = replay.GetPullInfo();
 
                     ImGui.BeginTooltip();
-                    ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
 
-                    ImGui.TextUnformatted($"Duty: {header.ContentFinderCondition?.Name.ToDalamudString()}");
-                    if ((header.info & 4) != 0)
+                    using (ImGuiEx.StyleVarBlock.Begin(ImGuiStyleVar.ItemSpacing, Vector2.Zero))
                     {
-                        ImGui.SameLine();
-                        ImGui.TextUnformatted(" ");
-                        ImGui.SameLine();
-                        ImGui.PushFont(UiBuilder.IconFont);
-                        ImGui.TextColored(new Vector4(0, 1, 0, 1), FontAwesomeIcon.Check.ToIconString());
-                        ImGui.PopFont();
-                    }
-
-                    var foundPlayer = false;
-                    ImGui.TextUnformatted("Party:");
-                    foreach (var row in header.ClassJobs.OrderBy(row => row.UIPriority))
-                    {
-                        ImGui.SameLine();
-                        if (!foundPlayer && row == header.LocalPlayerClassJob)
+                        ImGui.TextUnformatted($"Duty: {header.ContentFinderCondition?.Name.ToDalamudString()}");
+                        if ((header.info & 4) != 0)
                         {
-                            ImGui.TextUnformatted($" «{row.Abbreviation}»");
-                            foundPlayer = true;
+                            ImGui.SameLine();
+                            ImGui.TextUnformatted(" ");
+                            ImGui.SameLine();
+                            using (ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))
+                                ImGui.TextColored(new Vector4(0, 1, 0, 1), FontAwesomeIcon.Check.ToIconString());
                         }
-                        else
+
+                        var foundPlayer = false;
+                        ImGui.TextUnformatted("Party:");
+                        foreach (var row in header.ClassJobs.OrderBy(row => row.UIPriority))
                         {
-                            ImGui.TextUnformatted($" {row.Abbreviation}");
+                            ImGui.SameLine();
+                            if (!foundPlayer && row == header.LocalPlayerClassJob)
+                            {
+                                ImGui.TextUnformatted($" «{row.Abbreviation}»");
+                                foundPlayer = true;
+                            }
+                            else
+                            {
+                                ImGui.TextUnformatted($" {row.Abbreviation}");
+                            }
+                        }
+
+                        ImGui.TextUnformatted($"Length: {new TimeSpan(0, 0, 0, 0, (int)header.displayedMS):hh':'mm':'ss}");
+                        if (pulls > 1)
+                        {
+                            ImGui.TextUnformatted($"Number of Pulls: {pulls}");
+                            ImGui.TextUnformatted($"Longest Pull: {longestPull:hh':'mm':'ss}");
                         }
                     }
 
-                    ImGui.TextUnformatted($"Length: {new TimeSpan(0, 0, 0, 0, (int)header.displayedMS):hh':'mm':'ss}");
-                    if (pulls > 1)
-                    {
-                        ImGui.TextUnformatted($"Number of Pulls: {pulls}");
-                        ImGui.TextUnformatted($"Longest Pull: {longestPull:hh':'mm':'ss}");
-                    }
-
-                    ImGui.PopStyleVar();
                     ImGui.EndTooltip();
                 }
 
@@ -322,18 +325,20 @@ public static unsafe class PluginUI
 
         if (DalamudApi.GameGui.GetAddonByName("TalkSubtitle") != nint.Zero) return; // Hide during cutscenes
 
+        if (Common.ContentsReplayModule->seek != lastSeek || Common.ContentsReplayModule->IsPaused)
+        {
+            lastSeek = Common.ContentsReplayModule->seek;
+            unstuckTimer.Restart();
+            showUnstuckButton = false;
+        }
+        else if (unstuckTimer.ElapsedMilliseconds > 3_000)
+        {
+            showUnstuckButton = true;
+            loadedPlayback = true;
+        }
+
         if (!loadedPlayback)
         {
-            if (Common.ContentsReplayModule->seek != lastSeek)
-            {
-                lastSeek = Common.ContentsReplayModule->seek;
-                lastSeekChange.Restart();
-            }
-            else if (lastSeekChange.ElapsedMilliseconds >= 3_000)
-            {
-                loadedPlayback = true;
-            }
-
             if (Common.ContentsReplayModule->u0x6F8 != 0)
                 loadingPlayback = true;
             else if (loadingPlayback && Common.ContentsReplayModule->u0x6F8 == 0)
@@ -342,8 +347,13 @@ public static unsafe class PluginUI
         }
 
         var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplayPlayer");
-        if (addon == null) return;
+        if (addon == null || (ARealmRecorded.Config.EnablePlaybackControlHiding && !addon->IsVisible && !showUnstuckButton))
+        {
+            shouldPlaybackControlHide = true;
+            return;
+        }
 
+        using var _ = ImGuiEx.StyleVarBlock.Begin(ImGuiStyleVar.Alpha, ARealmRecorded.Config.EnablePlaybackControlHiding && shouldPlaybackControlHide && !showUnstuckButton ? 0.001f : 1);
         var addonW = addon->RootNode->GetWidth() * addon->Scale;
         var addonPadding = addon->Scale * 8;
         ImGuiHelpers.ForceNextWindowMainViewport();
@@ -382,85 +392,87 @@ public static unsafe class PluginUI
             Game.ToggleWaymarks();
         ImGuiEx.SetItemTooltip(v ? "Hide waymarks." : "Show waymarks.");
 
-        ImGui.SameLine();
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.SameLine();
-        if (ImGui.Button(FontAwesomeIcon.Cog.ToIconString()))
-            showReplaySettings ^= true;
-
-        ImGui.SameLine();
-        ImGui.Button(FontAwesomeIcon.Skull.ToIconString());
-        if (ImGui.BeginPopupContextItem(null, ImGuiPopupFlags.MouseButtonLeft))
+        using (ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))
         {
-            if (ImGui.Selectable(FontAwesomeIcon.DoorOpen.ToIconString()))
-                Common.ContentsReplayModule->overallDataOffset = long.MaxValue;
-            ImGui.EndPopup();
-        }
+            ImGui.SameLine();
+            if (ImGui.Button(FontAwesomeIcon.Cog.ToIconString()))
+                showReplaySettings ^= true;
+
+            ImGui.SameLine();
+            ImGui.Button(FontAwesomeIcon.Skull.ToIconString());
+            if (ImGui.BeginPopupContextItem(null, ImGuiPopupFlags.MouseButtonLeft))
+            {
+                if (ImGui.Selectable(FontAwesomeIcon.DoorOpen.ToIconString()))
+                    Common.ContentsReplayModule->overallDataOffset = long.MaxValue;
+                ImGui.EndPopup();
+            }
 
 #if DEBUG
-        ImGui.SameLine();
-        if (ImGui.Button(FontAwesomeIcon.ExclamationTriangle.ToIconString()))
-            showDebug ^= true;
+            ImGui.SameLine();
+            if (ImGui.Button(FontAwesomeIcon.ExclamationTriangle.ToIconString()))
+                showDebug ^= true;
 #endif
-        ImGui.PopFont();
+        }
 
-        var seek = Common.ContentsReplayModule->seek;
-        if (!Common.ContentsReplayModule->IsPaused || Common.ContentsReplayModule->IsLoadingChapter)
+        if (showUnstuckButton)
         {
-            if (seek != lastSeek)
-            {
-                lastSeek = seek;
-                lastSeekChange.Restart();
-            }
-            else if (lastSeekChange.ElapsedMilliseconds >= 3_000)
-            {
-                ImGui.SameLine();
-                var segment = Game.GetReplayDataSegmentDetour(Common.ContentsReplayModule);
+            ImGui.SameLine();
+            var segment = Game.GetReplayDataSegmentDetour(Common.ContentsReplayModule);
 
-                using (ImGuiEx.StyleColorBlock.Begin(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive)))
-                {
-                    if (ImGui.Button("UNSTUCK") && segment != null)
-                        Common.ContentsReplayModule->overallDataOffset += segment->Length;
-                }
+            using (ImGuiEx.StyleColorBlock.Begin(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.TabActive)))
+            {
+                if (ImGui.Button("UNSTUCK") && segment != null)
+                    Common.ContentsReplayModule->overallDataOffset += segment->Length;
             }
         }
 
-        ImGui.BeginDisabled(Common.ContentsReplayModule->IsLoadingChapter);
+
+        using (ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))
+        {
+            var buttonSize = ImGui.CalcTextSize(FontAwesomeIcon.EyeSlash.ToIconString()) + ImGui.GetStyle().FramePadding * 2;
+            ImGui.SameLine(ImGui.GetContentRegionMax().X - buttonSize.X);
+            if (ImGui.Button(ARealmRecorded.Config.EnablePlaybackControlHiding ? FontAwesomeIcon.EyeSlash.ToIconString() : FontAwesomeIcon.Eye.ToIconString(), buttonSize))
+            {
+                ARealmRecorded.Config.EnablePlaybackControlHiding ^= true;
+                ARealmRecorded.Config.Save();
+            }
+        }
+        ImGuiEx.SetItemTooltip("Hides the menu under certain circumstances.");
 
         const int restartDelayMS = 12_000;
         var sliderWidth = ImGui.GetContentRegionAvail().X;
-        var seekMS = Math.Max(seek.ToMilliseconds(), (int)Common.ContentsReplayModule->chapters[0]->ms);
+        var seekMS = Math.Max(Common.ContentsReplayModule->seek.ToMilliseconds(), (int)Common.ContentsReplayModule->chapters[0]->ms);
         var lastStartChapterMS = Common.ContentsReplayModule->chapters[Common.ContentsReplayModule->FindPreviousChapterType(2)]->ms;
         var nextStartChapterMS = Common.ContentsReplayModule->chapters[Common.ContentsReplayModule->FindNextChapterType(2)]->ms;
         if (lastStartChapterMS >= nextStartChapterMS)
             nextStartChapterMS = Common.ContentsReplayModule->replayHeader.totalMS;
         var currentTime = new TimeSpan(0, 0, 0, 0, (int)(seekMS - lastStartChapterMS));
-        ImGui.PushItemWidth(sliderWidth);
-        ImGui.PushStyleVar(ImGuiStyleVar.GrabMinSize, 4);
-        ImGui.SliderInt($"##Time{lastStartChapterMS}", ref seekMS, (int)lastStartChapterMS, (int)nextStartChapterMS - restartDelayMS, currentTime.ToString("hh':'mm':'ss"), ImGuiSliderFlags.NoInput);
-        ImGui.PopStyleVar();
 
-        if (ImGui.IsItemHovered())
+        using (ImGuiEx.ItemWidthBlock.Begin(sliderWidth))
         {
-            var hoveredWidth = ImGui.GetMousePos().X - ImGui.GetItemRectMin().X;
-            var hoveredPercent = hoveredWidth / sliderWidth;
-            if (hoveredPercent is >= 0.0f and <= 1.0f)
+            using (ImGuiEx.DisabledBlock.Begin(Common.ContentsReplayModule->IsLoadingChapter))
+            using (ImGuiEx.StyleVarBlock.Begin(ImGuiStyleVar.GrabMinSize, 4))
+                ImGui.SliderInt($"##Time{lastStartChapterMS}", ref seekMS, (int)lastStartChapterMS, (int)nextStartChapterMS - restartDelayMS, currentTime.ToString("hh':'mm':'ss"), ImGuiSliderFlags.NoInput);
+
+            if (ImGui.IsItemHovered())
             {
-                var hoveredTime = new TimeSpan(0, 0, 0, 0, (int)Math.Min(Math.Max((int)((nextStartChapterMS - lastStartChapterMS - restartDelayMS) * hoveredPercent), 0), nextStartChapterMS - lastStartChapterMS));
-                ImGui.SetTooltip(hoveredTime.ToString("hh':'mm':'ss"));
-                if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-                    ReplayManager.SeekToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
-                else if (ARealmRecorded.Config.EnableJumpToTime && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
-                    ReplayManager.JumpToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
+                var hoveredWidth = ImGui.GetMousePos().X - ImGui.GetItemRectMin().X;
+                var hoveredPercent = hoveredWidth / sliderWidth;
+                if (hoveredPercent is >= 0.0f and <= 1.0f)
+                {
+                    var hoveredTime = new TimeSpan(0, 0, 0, 0, (int)Math.Min(Math.Max((int)((nextStartChapterMS - lastStartChapterMS - restartDelayMS) * hoveredPercent), 0), nextStartChapterMS - lastStartChapterMS));
+                    ImGui.SetTooltip(hoveredTime.ToString("hh':'mm':'ss"));
+                    if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+                        ReplayManager.SeekToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
+                    else if (ARealmRecorded.Config.EnableJumpToTime && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+                        ReplayManager.JumpToTime((uint)hoveredTime.TotalMilliseconds + lastStartChapterMS);
+                }
             }
+
+            var speed = Common.ContentsReplayModule->speed;
+            if (ImGui.SliderFloat("##Speed", ref speed, 0.05f, 10.0f, "%.2fx", ImGuiSliderFlags.AlwaysClamp))
+                Common.ContentsReplayModule->speed = speed;
         }
-
-        ImGui.EndDisabled();
-
-        var speed = Common.ContentsReplayModule->speed;
-        if (ImGui.SliderFloat("##Speed", ref speed, 0.05f, 10.0f, "%.2fx", ImGuiSliderFlags.AlwaysClamp))
-            Common.ContentsReplayModule->speed = speed;
-        ImGui.PopItemWidth();
 
         for (int i = 0; i < presetSpeeds.Length; i++)
         {
@@ -478,6 +490,8 @@ public static unsafe class PluginUI
         ImGui.SameLine();
         if (ImGui.Button($"{customSpeed}x"))
             Common.ContentsReplayModule->speed = customSpeed == Common.ContentsReplayModule->speed ? 1 : customSpeed;
+
+        shouldPlaybackControlHide = !ImGui.IsWindowHovered(ImGuiHoveredFlags.ChildWindows | ImGuiHoveredFlags.RectOnly);
 
         ImGui.End();
     }
@@ -498,9 +512,8 @@ public static unsafe class PluginUI
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Doing this WILL result in playback not appearing correctly!");
         ImGui.SameLine();
-        ImGui.PushFont(UiBuilder.IconFont);
-        ImGui.TextColored(new Vector4(1, 1, 0, 1), FontAwesomeIcon.ExclamationTriangle.ToIconString());
-        ImGui.PopFont();
+        using (ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))
+            ImGui.TextColored(new Vector4(1, 1, 0, 1), FontAwesomeIcon.ExclamationTriangle.ToIconString());
 
         if (ARealmRecorded.Config.EnableQuickLoad)
         {
