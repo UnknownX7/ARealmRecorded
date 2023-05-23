@@ -40,8 +40,8 @@ public static unsafe class Game
 
     private static readonly AsmPatch alwaysRecordPatch = new("A8 04 75 27 A8 02 74 23 48 8B", new byte?[] { 0xEB, 0x21 }, true); // 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90
     private static readonly AsmPatch removeRecordReadyToastPatch = new("BA CB 07 00 00 48 8B CF E8", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
-    private static readonly AsmPatch instantFadeOutPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48 8B 0D", new byte?[] { null, null, 0x02, 0x90 }, true); // lea r8d, [rdx+0A] -> lea r8d, [rdx]
-    private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 0F 28 74 24", new byte?[] { null, null, null, 0x01 }, true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
+    private static readonly AsmPatch instantFadeOutPatch = new("44 8D 47 0A 33 D2", new byte?[] { null, null, 0x07, 0x90 }, true); // lea r8d, [rdi+0A] -> lea r8d, [rdi]
+    private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00", new byte?[] { null, null, null, 0x01 }, true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
     public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", new byte?[] { 0x90, 0x90 }, ARealmRecorded.Config.EnableHideOwnName);
 
     [HypostasisSignatureInjection("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 0E", Static = true, Offset = 0x48)]
