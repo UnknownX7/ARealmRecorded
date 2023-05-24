@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
 using Dalamud.Memory;
 using Hypostasis.Game.Structures;
@@ -13,11 +14,9 @@ public abstract unsafe class CustomReplayPacket
 
     protected void Write(uint objectID, byte[] data)
     {
-        if (!Common.ContentsReplayModule->IsSavingPackets) return;
-
         if (Common.ContentsReplayModule->IsRecording)
             Common.ContentsReplayModule->WritePacket(objectID, Opcode, data);
-        else
+        else if (DalamudApi.Condition[ConditionFlag.WaitingForDuty])
             (buffer ??= new()).Add((objectID, data));
     }
 
