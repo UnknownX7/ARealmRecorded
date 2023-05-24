@@ -227,9 +227,12 @@ public static unsafe class Game
                 wasRecording = true;
                 break;
             case false when wasRecording:
-                AutoRenameReplay();
                 wasRecording = false;
-                Common.ContentsReplayModule->SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
+                DalamudApi.Framework.RunOnTick(() =>
+                {
+                    AutoRenameReplay();
+                    Common.ContentsReplayModule->SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
+                }, default, 30);
                 break;
         }
     }
