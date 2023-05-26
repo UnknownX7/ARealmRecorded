@@ -62,6 +62,8 @@ public static unsafe class ReplayListUI
             ImGui.Begin("Replay List", ref displayDetachedReplayList, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.AlwaysAutoResize);
         }
 
+        ImGuiEx.AddDonationHeader();
+
         if (ImGui.IsWindowAppearing())
             showPluginSettings = false;
 
