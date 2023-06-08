@@ -1,6 +1,5 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
-using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Hooking;
 using Dalamud.Memory;
 using Hypostasis.Game.Structures;
@@ -10,28 +9,13 @@ namespace ARealmRecorded;
 public abstract unsafe class CustomReplayPacket
 {
     public abstract ushort Opcode { get; }
-    private List<(uint, byte[])> buffer;
 
     protected void Write(uint objectID, byte[] data)
     {
         if (Common.ContentsReplayModule->IsRecording)
             Common.ContentsReplayModule->WritePacket(objectID, Opcode, data);
-        else if (DalamudApi.Condition[ConditionFlag.WaitingForDuty])
-            (buffer ??= new()).Add((objectID, data));
-    }
-
-    public void FlushBuffer()
-    {
-        if (buffer == null) return;
-
-        //DalamudApi.LogDebug($"Recording {buffer.Count} {GetType()}");
-        if (Common.ContentsReplayModule->IsSavingPackets)
-        {
-            foreach (var (objectID, data) in buffer)
-                Common.ContentsReplayModule->WritePacket(objectID, Opcode, data);
-        }
-
-        buffer.Clear();
+        else
+            ReplayPacketManager.WriteBuffer(objectID, Opcode, data);
     }
 
     public abstract void Replay(FFXIVReplay.DataSegment* segment, byte* data);
@@ -74,6 +58,7 @@ public unsafe class RSFPacket : CustomReplayPacket
 public static unsafe class ReplayPacketManager
 {
     public static Dictionary<uint, CustomReplayPacket> CustomPackets { get; set; } = new();
+    private static List<(uint, ushort, byte[])> buffer = new();
 
     public static void Initialize()
     {
@@ -102,9 +87,25 @@ public static unsafe class ReplayPacketManager
         return true;
     }
 
-    public static void FlushBuffers()
+    public static void WriteBuffer(uint objectID, ushort opcode, byte[] data)
     {
-        foreach (var (_, packet) in CustomPackets)
-            packet.FlushBuffer();
+        buffer.Add((objectID, opcode, data));
+        if (buffer.Count == 1)
+            DalamudApi.Framework.RunOnTick(buffer.Clear, new TimeSpan(0, 0, 10));
+    }
+
+    public static void FlushBuffer()
+    {
+        if (Common.ContentsReplayModule->IsSavingPackets && buffer.Count > 0)
+        {
+            //DalamudApi.LogDebug($"Recording {buffer.Count} packets");
+            foreach (var (objectID, opcode, data) in buffer)
+            {
+                //DalamudApi.LogDebug($"{CustomPackets[opcode].GetType()}, Length: {data.Length}");
+                Common.ContentsReplayModule->WritePacket(objectID, opcode, data);
+            }
+        }
+
+        buffer.Clear();
     }
 }

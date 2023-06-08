@@ -91,7 +91,7 @@ public static unsafe class Game
         if (contentDirectorOffset > 0)
             ContentDirectorTimerUpdateHook?.Enable();
 
-        ReplayPacketManager.FlushBuffers();
+        ReplayPacketManager.FlushBuffer();
     }
 
     public static Bool RequestPlaybackDetour(ContentsReplayModule* contentsReplayModule, byte slot)
