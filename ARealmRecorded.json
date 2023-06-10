@@ -3,7 +3,7 @@
   "Name": "A Realm Recorded",
   "Punchline": "Allows you to use the duty recorder",
   "Description": "Adds additional features to the duty recorder and automatically starts it in most instances.",
-  "IconUrl": "https://raw.githubusercontent.com/goatcorp/PluginDistD17/main/testing-live/ARealmRecorded/images/icon.png",
+  "IconUrl": "https://raw.githubusercontent.com/goatcorp/PluginDistD17/main/stable/ARealmRecorded/images/icon.png",
   "ImageUrls": [
     ""
   ],
