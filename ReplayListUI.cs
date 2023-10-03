@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Text.RegularExpressions;
 using Dalamud.Game.Config;
 using Dalamud.Interface;
+using Dalamud.Interface.Utility;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;

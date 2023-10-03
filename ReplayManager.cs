@@ -156,7 +156,7 @@ public static unsafe class ReplayManager
 
         for (int i = 0; i < 100; i++)
         {
-            var o = (BattleChara*)CharacterManager.Instance()->BattleCharaArray[i];
+            var o = CharacterManager.Instance()->BattleCharaListSpan[i].Value;
             if (o != null && o->Character.GameObject.GetObjectKind() == (byte)ObjectKind.BattleNpc)
                 Game.DeleteCharacterAtIndex(i);
         }

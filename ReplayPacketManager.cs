@@ -58,7 +58,7 @@ public unsafe class RSFPacket : CustomReplayPacket
 public static unsafe class ReplayPacketManager
 {
     public static Dictionary<uint, CustomReplayPacket> CustomPackets { get; set; } = new();
-    private static List<(uint, ushort, byte[])> buffer = new();
+    private static readonly List<(uint, ushort, byte[])> buffer = new();
 
     public static void Initialize()
     {
@@ -82,7 +82,7 @@ public static unsafe class ReplayPacketManager
     public static bool ReplayPacket(FFXIVReplay.DataSegment* segment, byte* data)
     {
         if (!CustomPackets.TryGetValue(segment->opcode, out var packet)) return false;
-        //DalamudApi.LogDebug($"Replaying Custom Packet: 0x{segment->opcode:X}");
+        //DalamudApi.LogDebug($"Replaying Custom Packet: {CustomPackets[segment->opcode].GetType()}");
         packet.Replay(segment, data);
         return true;
     }
