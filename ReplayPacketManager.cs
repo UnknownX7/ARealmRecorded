@@ -57,8 +57,8 @@ public unsafe class RSFPacket : CustomReplayPacket
 
 public static unsafe class ReplayPacketManager
 {
-    public static Dictionary<uint, CustomReplayPacket> CustomPackets { get; set; } = new();
-    private static readonly List<(uint, ushort, byte[])> buffer = new();
+    public static Dictionary<uint, CustomReplayPacket> CustomPackets { get; set; } = [];
+    private static readonly List<(uint, ushort, byte[])> buffer = [];
 
     public static void Initialize()
     {

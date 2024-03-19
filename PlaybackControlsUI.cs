@@ -13,7 +13,7 @@ namespace ARealmRecorded;
 
 public static unsafe class PlaybackControlsUI
 {
-    public static readonly float[] presetSpeeds = { 0.5f, 1, 2, 5, 10, 20 };
+    public static readonly float[] presetSpeeds = [ 0.5f, 1, 2, 5, 10, 20 ];
 
     private static bool loadingPlayback = false;
     private static bool loadedPlayback = true;

@@ -4,11 +4,9 @@ using Dalamud.Plugin;
 
 namespace ARealmRecorded;
 
-public class ARealmRecorded : DalamudPlugin<Configuration>, IDalamudPlugin
+public class ARealmRecorded(DalamudPluginInterface pluginInterface) : DalamudPlugin<Configuration>(pluginInterface), IDalamudPlugin
 {
     public string Name => "A Realm Recorded";
-
-    public ARealmRecorded(DalamudPluginInterface pluginInterface) : base(pluginInterface) { }
 
     protected override void Initialize()
     {
