@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Config;
@@ -204,7 +205,7 @@ public static unsafe class Game
     private static nint FormatAddonTextTimestampDetour(nint raptureTextModule, uint addonSheetRow, int a3, uint hours, uint minutes, uint seconds, uint a7)
     {
         var ret = FormatAddonTextTimestampHook.Original(raptureTextModule, addonSheetRow, a3, hours, minutes, seconds, a7);
-        if (addonSheetRow != 3079 || !DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi) return ret;
+        if (addonSheetRow != 3079 || !DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi || a3 >= 64) return ret;
 
         // In this context, a3 is the chapter index + 1, while a7 determines the chapter type name
         var currentChapterMS = Common.ContentsReplayModule->chapters[a3 - 1]->ms;
@@ -213,7 +214,7 @@ public static unsafe class Game
             nextChapterMS = Common.ContentsReplayModule->replayHeader.totalMS;
 
         var timespan = new TimeSpan(0, 0, 0, 0, (int)(nextChapterMS - currentChapterMS));
-        (ret + ret.ReadCString().Length).WriteCString($" ({(int)timespan.TotalMinutes:D2}:{timespan.Seconds:D2})");
+        (ret + Encoding.UTF8.GetByteCount(ret.ReadCString())).WriteCString($" ({(int)timespan.TotalMinutes:D2}:{timespan.Seconds:D2})");
 
         return ret;
     }
