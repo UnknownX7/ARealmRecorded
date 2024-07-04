@@ -4,7 +4,7 @@ using Dalamud.Plugin;
 
 namespace ARealmRecorded;
 
-public class ARealmRecorded(DalamudPluginInterface pluginInterface) : DalamudPlugin<Configuration>(pluginInterface), IDalamudPlugin
+public class ARealmRecorded(IDalamudPluginInterface pluginInterface) : DalamudPlugin<Configuration>(pluginInterface), IDalamudPlugin
 {
     public string Name => "A Realm Recorded";
 
