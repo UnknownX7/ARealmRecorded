@@ -92,12 +92,12 @@ public static unsafe class PlaybackControlsUI
 
         //ImGui.SameLine();
         if (ImGuiEx.FontButton(FontAwesomeIcon.Users.ToIconString(), UiBuilder.IconFont))
-            Framework.Instance()->GetUiModule()->EnterGPose();
+            Framework.Instance()->GetUIModule()->EnterGPose();
         ImGuiEx.SetItemTooltip("Enters group pose.");
 
         ImGui.SameLine();
         if (ImGuiEx.FontButton(FontAwesomeIcon.Video.ToIconString(), UiBuilder.IconFont))
-            Framework.Instance()->GetUiModule()->EnterIdleCam(0, DalamudApi.TargetManager.FocusTarget is { } focus ? focus.ObjectId : 0xE0000000);
+            Framework.Instance()->GetUIModule()->EnterIdleCam(0, DalamudApi.TargetManager.FocusTarget is { } focus ? focus.GameObjectId : 0xE0000000);
         ImGuiEx.SetItemTooltip("Enters idle camera on the current focus target.");
 
         ImGui.SameLine();

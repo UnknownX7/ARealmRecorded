@@ -13,9 +13,9 @@ public static unsafe class ReplayManager
     private static byte seekingChapter;
     private static uint seekingOffset;
 
-    private static readonly AsmPatch removeProcessingLimitPatch = new("41 FF C6 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F 84", new byte?[] { 0x90, 0x90, 0x90 }, true);
-    private static readonly AsmPatch removeProcessingLimitPatch2 = new("77 57 48 8B 0D ?? ?? ?? ?? 33 C0", new byte?[] { 0x90, 0x90 }, true);
-    private static readonly AsmPatch forceFastForwardPatch = new("0F 83 ?? ?? ?? ?? 0F B7 47 02 4C 8D 47 0C", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
+    private static readonly AsmPatch removeProcessingLimitPatch = new("41 FF C4 48 39 43 38", new byte?[] { 0x90, 0x90, 0x90 }, true);
+    private static readonly AsmPatch removeProcessingLimitPatch2 = new("0F 87 7C 02 00 00 48 8B 0D", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90}, true);
+    private static readonly AsmPatch forceFastForwardPatch = new("0F 83 ?? ?? ?? ?? 41 0F B7 46 02 4D 8D 46 0C", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 });
 
     public static void PlaybackUpdate(ContentsReplayModule* contentsReplayModule)
     {
@@ -156,8 +156,8 @@ public static unsafe class ReplayManager
 
         for (int i = 0; i < 100; i++)
         {
-            var o = CharacterManager.Instance()->BattleCharaListSpan[i].Value;
-            if (o != null && o->Character.GameObject.GetObjectKind() == (byte)ObjectKind.BattleNpc)
+            var o = CharacterManager.Instance()->BattleCharas[i].Value;
+            if (o != null && o->Character.GameObject.GetObjectKind() == ObjectKind.BattleNpc)
                 Game.DeleteCharacterAtIndex(i);
         }
 
