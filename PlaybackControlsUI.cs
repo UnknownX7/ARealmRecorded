@@ -53,9 +53,9 @@ public static unsafe class PlaybackControlsUI
 
         if (!loadedPlayback)
         {
-            if (Common.ContentsReplayModule->u0x6F8 != 0)
+            if (Common.ContentsReplayModule->u0x700 != 0)
                 loadingPlayback = true;
-            else if (loadingPlayback && Common.ContentsReplayModule->u0x6F8 == 0)
+            else if (loadingPlayback && Common.ContentsReplayModule->u0x700 == 0)
                 loadedPlayback = true;
             return;
         }
