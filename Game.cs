@@ -18,7 +18,7 @@ namespace ARealmRecorded;
 [HypostasisInjection]
 public static unsafe class Game
 {
-    public static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPath.ToString(), "replay");
+    public static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPathString, "replay");
     public static readonly string autoRenamedFolder = Path.Combine(replayFolder, "autorenamed");
     public static readonly string archiveZip = Path.Combine(replayFolder, "archive.zip");
     public static readonly string deletedFolder = Path.Combine(replayFolder, "deleted");
@@ -291,6 +291,7 @@ public static unsafe class Game
     {
         try
         {
+            DalamudApi.LogDebug(replayFolder);
             var directory = new DirectoryInfo(replayFolder);
 
             var renamedDirectory = new DirectoryInfo(autoRenamedFolder);
