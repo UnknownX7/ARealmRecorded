@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Config;
@@ -44,6 +45,7 @@ public static unsafe class Game
     private static readonly AsmPatch instantFadeOutPatch = new("44 8D 47 0A 33 D2", new byte?[] { null, null, 0x07, 0x90 }, true); // lea r8d, [rdi+0A] -> lea r8d, [rdi]
     private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48", new byte?[] { null, null, null, 0x01 }, true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
     public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", new byte?[] { 0x90, 0x90 }, ARealmRecorded.Config.EnableHideOwnName);
+    public static readonly AsmPatch notInlineBeginPlaybackPatch = new("0F ?? ?? ?? ?? ?? ?? 41 ?? ?? ?? 40 ?? ?? 0F 84", new byte?[] { 0x41, 0x83, 0x78, 0x04, 0x00, 0x48, 0x8B, 0xCB, 0x0F, 0x95, 0xC2, 0xE8, 0xD2, 0x2B, 0x00, 0x00, 0xE9, 0x4B, 0x01, 0x00, 0x00 }, true);//cmp dword ptr [r8+4], 0 -> mov rcx, rbx -> call BeginPlayback -> jmp inlineBeginPlaybackEnd
 
     [HypostasisSignatureInjection("48 ?? ?? ?? ?? ?? ?? e8 ?? ?? ?? ?? 33 ?? 48 ?? ?? ?? ?? ?? ?? e8 ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? e8 ?? ?? ?? ?? eb", Static = true, Offset = 0x48)]
     private static byte* waymarkToggle; // Actually a uint, but only seems to use the first 2 bits
@@ -53,7 +55,7 @@ public static unsafe class Game
     [HypostasisSignatureInjection("?? ?? 00 00 01 75 74 85 FF 75 07 E8")]
     public static short contentDirectorOffset;
 
-    [HypostasisSignatureInjection("48 89 5c 24 ?? 48 89 7c 24 ?? 55 48 ?? ?? ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? 48 89 85 ?? ?? ?? ?? 33 ?? 48 ?? ?? 89 44 24 ?? 89 44 24")]
+    [HypostasisSignatureInjection("48 89 5C 24 10 48 89 7C 24 18 55 48 8D AC 24 90 FC FF FF")]
     private static delegate* unmanaged<nint, void> displaySelectedDutyRecording;
     public static void DisplaySelectedDutyRecording(nint agent) => displaySelectedDutyRecording(agent);
 
@@ -278,7 +280,10 @@ public static unsafe class Game
             if (fs.Read(bytes, 0, size) != size)
                 return null;
             fixed (byte* ptr = bytes)
+            {
+                ((FFXIVReplay*)ptr)->header.localCID = DalamudApi.ClientState.LocalContentId;
                 return *(FFXIVReplay*)ptr;
+            }
         }
         catch (Exception e)
         {
