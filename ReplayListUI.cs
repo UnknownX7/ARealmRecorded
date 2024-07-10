@@ -180,7 +180,8 @@ public static unsafe class ReplayListUI
                     if (ImGui.Selectable(autoRenamed ? $"◯ {displayName}##{path}" : $"{displayName}##{path}", path == Game.LastSelectedReplay && (agent == nint.Zero || *(byte*)(agent + 0x2C) == 100), ImGuiSelectableFlags.SpanAllColumns))
                     {
                         if (agent != nint.Zero)
-                            Game.SetDutyRecorderMenuSelection(agent, path, header);
+                            //Game.SetDutyRecorderMenuSelection(agent, path, header);
+                            Game.CopyReplayIntoSlot(agent, new(path), header, 0);
                         else
                             Game.LastSelectedReplay = path;
                     }
