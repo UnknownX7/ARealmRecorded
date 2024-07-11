@@ -137,6 +137,8 @@ public static unsafe class ReplayListUI
         ImGui.TableHeadersRow();
 
         var sortspecs = ImGui.TableGetSortSpecs();
+        Game.ReplayList = Game.ReplayList.Where(x => !x.Item1.Name.Contains("FFXIV_")).ToList();
+        if (Game.ReplayList == null) Game.ReplayList = new();
         if (sortspecs.SpecsDirty || needSort || ImGui.IsWindowAppearing())
         {
             if (sortspecs.Specs.ColumnIndex == 0)
