@@ -160,6 +160,9 @@ public static unsafe class ReplayListUI
         for (int i = 0; i < Game.ReplayList.Count; i++)
         {
             var (file, replay) = Game.ReplayList[i];
+
+            if (file.Name.Contains("FFXIV_")) continue;
+
             var header = replay.header;
             var path = file.FullName;
             var fileName = file.Name;

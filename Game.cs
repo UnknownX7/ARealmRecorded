@@ -310,7 +310,7 @@ public static unsafe class Game
             }
 
             var list = (from file in directory.GetFiles().Concat(renamedDirectory?.GetFiles() ?? Array.Empty<FileInfo>())
-                    where file.Extension == ".dat" && !file.Name.Contains("FFXIV_")
+                    where file.Extension == ".dat"
                     let replay = ReadReplayHeaderAndChapters(file.FullName)
                     where replay is { header.IsValid: true }
                     select (file, replay.Value)
