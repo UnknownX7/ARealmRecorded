@@ -13,6 +13,7 @@ using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using Hypostasis.Game.Structures;
+using static Hypostasis.Game.Structures.ContentsReplayModule;
 
 namespace ARealmRecorded;
 
@@ -554,6 +555,8 @@ public static unsafe class Game
 
     public static void Initialize()
     {
+        var Address = DalamudApi.SigScanner.BaseRDataAddress-0x100;
+        ContentsReplayModule.getReplayDataSegment ??= new InlineFunction<GetReplayDataSegmentDelegate>(Address,Hypostasis.Game.Structures.GetReplayDataSegmentClass.sig, GetReplayDataSegmentClass.preCallPatch, GetReplayDataSegmentClass.postCallPatch, GetReplayDataSegmentClass.shellCode);
         if (!Common.IsValid(Common.ContentsReplayModule))
             throw new ApplicationException($"{nameof(Common.ContentsReplayModule)} is not initialized!");
 
@@ -578,5 +581,6 @@ public static unsafe class Game
             Common.ContentsReplayModule->SetSavedReplayCIDs(0);
 
         ReplayManager.Dispose();
+        (ContentsReplayModule.getReplayDataSegment as IDisposable)?.Dispose();
     }
 }
