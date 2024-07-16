@@ -46,8 +46,16 @@ public static unsafe class Game
     private static readonly AsmPatch instantFadeOutPatch = new("44 8D 47 0A 33 D2", new byte?[] { null, null, 0x07, 0x90 }, true); // lea r8d, [rdi+0A] -> lea r8d, [rdi]
     private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48", new byte?[] { null, null, null, 0x01 }, true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
     public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", new byte?[] { 0x90, 0x90 }, ARealmRecorded.Config.EnableHideOwnName);
-    public static readonly AsmPatch notInlineBeginPlaybackPatch = new("0F ?? ?? ?? ?? ?? ?? 41 ?? ?? ?? 40 ?? ?? 0F 84", new byte?[] { 0x41, 0x83, 0x78, 0x04, 0x00, 0x48, 0x8B, 0xCB, 0x0F, 0x95, 0xC2, 0xE8, 0xD2, 0x2B, 0x00, 0x00, 0xE9, 0x4B, 0x01, 0x00, 0x00 }, true);//cmp dword ptr [r8+4], 0 -> mov rcx, rbx -> call BeginPlayback -> jmp inlineBeginPlaybackEnd
+    public static readonly AsmPatch notInlineBeginPlaybackPatch = new("0F ?? ?? ?? ?? ?? ?? 41 ?? ?? ?? 40 ?? ?? 0F 84", [ 0x41, 0x83, 0x78, 0x04, 0x00, 0x48, 0x8B, 0xCB, 0x0F, 0x95, 0xC2, 0xE8,..BeginPlaybackOffset, 0xE9, 0x4B, 0x01, 0x00, 0x00 ], true);//cmp dword ptr [r8+4], 0 -> mov rcx, rbx -> call BeginPlayback -> jmp inlineBeginPlaybackEnd
     private static readonly AsmPatch cidCheckPatch = new("74 ?? 48 ?? ?? ?? ?? ?? ?? 75 ?? B3", new byte?[] { 0xEB, 0x09 }, true);
+    private static byte[] BeginPlaybackOffset 
+    {
+        get
+        {
+            var offset = DalamudApi.SigScanner.ScanText("40 ?? 48 ?? ?? ?? 0F ?? ?? ?? ?? ?? ?? 48 ?? ?? A8 ?? 0F 84 ?? ?? ?? ?? 24 ?? 88 81") - DalamudApi.SigScanner.ScanText("0F ?? ?? ?? ?? ?? ?? 41 ?? ?? ?? 40 ?? ?? 0F 84")-0x10;
+            return [(byte)(offset & 0xff), (byte)(offset >> 8 & 0xff), (byte)(offset >> 16 & 0xff), (byte)(offset >> 24 & 0xff)];
+        }
+    }
     //public static readonly AsmPatch alwaysReplay1 = new("83 78 20 00 75 07 80 A3 ?? ?? ?? ?? ??", new byte?[] { 0x90, 0x90 }, true);
     //public static readonly AsmPatch alwaysReplay2 = new("74 16 80 BB ?? ?? ?? ?? ?? 75 1A", new byte?[] { 0x75 }, true);
 
@@ -555,8 +563,7 @@ public static unsafe class Game
 
     public static void Initialize()
     {
-        var Address = DalamudApi.SigScanner.BaseRDataAddress-0x100;
-        ContentsReplayModule.getReplayDataSegment ??= new InlineFunction<GetReplayDataSegmentDelegate>(Address,Hypostasis.Game.Structures.GetReplayDataSegmentClass.sig, GetReplayDataSegmentClass.preCallPatch, GetReplayDataSegmentClass.postCallPatch, GetReplayDataSegmentClass.shellCode);
+        ContentsReplayModule.getReplayDataSegment ??= new InlineFunction<GetReplayDataSegmentDelegate>(GetReplayDataSegmentClass.Address, Hypostasis.Game.Structures.GetReplayDataSegmentClass.sig, GetReplayDataSegmentClass.preCallPatch, GetReplayDataSegmentClass.postCallPatch, GetReplayDataSegmentClass.shellCode);
         if (!Common.IsValid(Common.ContentsReplayModule))
             throw new ApplicationException($"{nameof(Common.ContentsReplayModule)} is not initialized!");
 
