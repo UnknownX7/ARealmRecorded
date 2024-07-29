@@ -18,7 +18,7 @@ namespace ARealmRecorded;
 [HypostasisInjection]
 public static unsafe class Game
 {
-    public static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPath.ToString(), "replay");
+    public static readonly string replayFolder = Path.Combine(Framework.Instance()->UserPathString, "replay");
     public static readonly string autoRenamedFolder = Path.Combine(replayFolder, "autorenamed");
     public static readonly string archiveZip = Path.Combine(replayFolder, "archive.zip");
     public static readonly string deletedFolder = Path.Combine(replayFolder, "deleted");
@@ -36,16 +36,16 @@ public static unsafe class Game
 
     private static bool wasRecording = false;
 
-    private static readonly HashSet<uint> whitelistedContentTypes = new() { 1, 2, 3, 4, 5, 9, 28, 29, 30 }; // 22 Event, 26 Eureka, 27 Carnivale
+    private static readonly HashSet<uint> whitelistedContentTypes = [ 1, 2, 3, 4, 5, 9, 28, 29, 30 ]; // 22 Event, 26 Eureka, 27 Carnivale
 
-    private static readonly AsmPatch alwaysRecordPatch = new("24 06 3C 02 75 23 48", new byte?[] { 0xEB, 0x1F }, true); // 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90
-    private static readonly AsmPatch removeRecordReadyToastPatch = new("BA CB 07 00 00 48 8B CF E8", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
-    private static readonly AsmPatch seIsABunchOfClownsPatch = new("F6 40 78 01 74 04 B0 01 EB 02 32 C0 40 84 FF", new byte?[] { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }, true);
-    private static readonly AsmPatch instantFadeOutPatch = new("44 8D 47 0A 33 D2", new byte?[] { null, null, 0x07, 0x90 }, true); // lea r8d, [rdi+0A] -> lea r8d, [rdi]
-    private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48", new byte?[] { null, null, null, 0x01 }, true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
-    public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", new byte?[] { 0x90, 0x90 }, ARealmRecorded.Config.EnableHideOwnName);
+    private static readonly AsmPatch alwaysRecordPatch = new("24 06 3C 02 75 23 48", [ 0xEB, 0x1F ], true);
+    private static readonly AsmPatch removeRecordReadyToastPatch = new("BA CB 07 00 00 48 8B CF E8", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
+    private static readonly AsmPatch seIsABunchOfClownsPatch = new("F6 40 78 01 74 04 B0 01 EB 02 32 C0 40 84 FF", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
+    private static readonly AsmPatch instantFadeOutPatch = new("44 8D 47 0A 33 D2", [ null, null, 0x07, 0x90 ], true); // lea r8d, [rdi+0A] -> lea r8d, [rdi]
+    private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48 8B 5C 24", [ null, null, null, 0x01 ], true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
+    public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", [ 0x90, 0x90 ], ARealmRecorded.Config.EnableHideOwnName);
 
-    [HypostasisSignatureInjection("48 ?? ?? ?? ?? ?? ?? e8 ?? ?? ?? ?? 33 ?? 48 ?? ?? ?? ?? ?? ?? e8 ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? e8 ?? ?? ?? ?? eb", Static = true, Offset = 0x48)]
+    [HypostasisSignatureInjection("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 3B", Static = true, Offset = 0x48)]
     private static byte* waymarkToggle; // Actually a uint, but only seems to use the first 2 bits
 
     public static bool IsWaymarkVisible => (*waymarkToggle & 2) == 0;
@@ -53,12 +53,11 @@ public static unsafe class Game
     [HypostasisSignatureInjection("?? ?? 00 00 01 75 74 85 FF 75 07 E8")]
     public static short contentDirectorOffset;
 
-    [HypostasisSignatureInjection("48 89 5c 24 ?? 48 89 7c 24 ?? 55 48 ?? ?? ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? 48 89 85 ?? ?? ?? ?? 33 ?? 48 ?? ?? 89 44 24 ?? 89 44 24")]
+    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 39 6E 34")]
     private static delegate* unmanaged<nint, void> displaySelectedDutyRecording;
     public static void DisplaySelectedDutyRecording(nint agent) => displaySelectedDutyRecording(agent);
 
-    //Client::Game::Character::CharacterManager_DeleteCharacterAtIndex
-    [HypostasisSignatureInjection("e8 ?? ?? ?? ?? ff ?? 83 ?? ?? 7c ?? e8")]
+    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 33 D2 48 8D 47 50")] // Client::Game::Character::CharacterManager_DeleteCharacterAtIndex
     private static delegate* unmanaged<CharacterManager*, int, void> deleteCharacterAtIndex;
     public static void DeleteCharacterAtIndex(int i) => deleteCharacterAtIndex(CharacterManager.Instance(), i);
 
@@ -191,8 +190,7 @@ public static unsafe class Game
     }
 
     private delegate nint EventBeginDelegate(nint a1, nint a2);
-    //Client::Game::Event::EventSceneModuleUsualImpl_PlayCutScene
-    [HypostasisSignatureInjection("40 ?? 55 57 41 ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? 48 89 84 24 ?? ?? ?? ?? 48 ?? ?? ?? 48")]
+    [HypostasisSignatureInjection("40 53 55 57 41 56 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 ?? ?? ?? ?? 48 8B 59 08")] // Client::Game::Event::EventSceneModuleUsualImpl_PlayCutScene
     private static Hook<EventBeginDelegate> EventBeginHook;
     private static nint EventBeginDetour(nint a1, nint a2) => !Common.ContentsReplayModule->InPlayback || !DalamudApi.GameConfig.UiConfig.TryGetBool(nameof(UiConfigOption.CutsceneSkipIsContents), out var b) || !b ? EventBeginHook.Original(a1, a2) : nint.Zero;
 
@@ -201,7 +199,7 @@ public static unsafe class Game
         || ContentsReplayModule.replayPacket.Original(contentsReplayModule, segment, data);
 
     public delegate nint FormatAddonTextTimestampDelegate(nint raptureTextModule, uint addonSheetRow, int a3, uint hours, uint minutes, uint seconds, uint a7);
-    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 8B ?? ?? ?? 48 ?? ?? 48 ?? ?? ?? ?? 8D ?? ?? 41")]
+    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 8D 4D 64")]
     private static Hook<FormatAddonTextTimestampDelegate> FormatAddonTextTimestampHook;
     private static nint FormatAddonTextTimestampDetour(nint raptureTextModule, uint addonSheetRow, int a3, uint hours, uint minutes, uint seconds, uint a7)
     {
@@ -302,7 +300,7 @@ public static unsafe class Game
                     renamedDirectory = null;
             }
 
-            var list = (from file in directory.GetFiles().Concat(renamedDirectory?.GetFiles() ?? Array.Empty<FileInfo>())
+            var list = (from file in directory.GetFiles().Concat(renamedDirectory?.GetFiles() ?? [])
                     where file.Extension == ".dat"
                     let replay = ReadReplayHeaderAndChapters(file.FullName)
                     where replay is { header.IsValid: true }
