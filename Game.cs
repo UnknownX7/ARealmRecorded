@@ -61,9 +61,11 @@ public static unsafe class Game
     private static delegate* unmanaged<CharacterManager*, int, void> deleteCharacterAtIndex;
     public static void DeleteCharacterAtIndex(int i) => deleteCharacterAtIndex(CharacterManager.Instance(), i);
 
-    private static void OnLoginPacketDetour(ContentsReplayModule* contentsReplayModule, uint gameObject, nint packet)
+    private static void OnZoneInPacketDetour(ContentsReplayModule* contentsReplayModule, uint gameObjectID, nint packet)
     {
-        ContentsReplayModule.onLoginPacket.Original(contentsReplayModule, gameObject, packet);
+        ContentsReplayModule.onZoneInPacket.Original(contentsReplayModule, gameObjectID, packet);
+        if ((contentsReplayModule->status & 1) == 0) return;
+
         if (DalamudApi.GameConfig.UiConfig.TryGetBool(nameof(UiConfigOption.CutsceneSkipIsContents), out var b) && b)
             InitializeRecordingDetour(contentsReplayModule);
     }
@@ -88,7 +90,7 @@ public static unsafe class Game
         contentsReplayModule->replayHeader = header;
 
         if (contentDirectorOffset > 0)
-            ContentDirectorTimerUpdateHook?.Enable();
+            ContentDirectorSynchronizeHook?.Enable();
 
         ReplayPacketManager.FlushBuffer();
     }
@@ -117,9 +119,9 @@ public static unsafe class Game
         return ret;
     }
 
-    private static void ReceiveActorControlPacketDetour(ContentsReplayModule* contentsReplayModule, uint gameObject, nint packet)
+    private static void ReceiveActorControlPacketDetour(ContentsReplayModule* contentsReplayModule, uint gameObjectID, nint packet)
     {
-        ContentsReplayModule.receiveActorControlPacket.Original(contentsReplayModule, gameObject, packet);
+        ContentsReplayModule.receiveActorControlPacket.Original(contentsReplayModule, gameObjectID, packet);
         if (*(ushort*)packet != 931 || !*(Bool*)(packet + 4)) return;
 
         ReplayManager.UnloadReplay();
@@ -174,18 +176,18 @@ public static unsafe class Game
     private static Hook<DisplayRecordingOnDTRBarDelegate> DisplayRecordingOnDTRBarHook;
     private static Bool DisplayRecordingOnDTRBarDetour(nint agent) => ARealmRecorded.Config.EnableRecordingIcon && Common.ContentsReplayModule->IsRecording && DalamudApi.PluginInterface.UiBuilder.ShouldModifyUi;
 
-    private delegate void ContentDirectorTimerUpdateDelegate(nint contentDirector);
-    [HypostasisSignatureInjection("40 53 48 83 EC 20 0F B6 81 ?? ?? ?? ?? 48 8B D9 A8 04 0F 84 ?? ?? ?? ?? A8 08")]
-    private static Hook<ContentDirectorTimerUpdateDelegate> ContentDirectorTimerUpdateHook;
-    private static void ContentDirectorTimerUpdateDetour(nint contentDirector)
+    private delegate void ContentDirectorSynchronizeDelegate(nint contentDirector);
+    [HypostasisSignatureInjection("40 53 55 57 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 ?? ?? ?? ?? 0F B6 81 ?? ?? ?? ??")] // Client::Game::InstanceContent::ContentDirector_Synchronize
+    private static Hook<ContentDirectorSynchronizeDelegate> ContentDirectorSynchronizeHook;
+    private static void ContentDirectorSynchronizeDetour(nint contentDirector)
     {
         if ((*(byte*)(contentDirector + contentDirectorOffset) & 12) == 12)
         {
             Common.ContentsReplayModule->status |= 64;
-            ContentDirectorTimerUpdateHook.Disable();
+            ContentDirectorSynchronizeHook.Disable();
         }
 
-        ContentDirectorTimerUpdateHook.Original(contentDirector);
+        ContentDirectorSynchronizeHook.Original(contentDirector);
     }
 
     private delegate nint EventBeginDelegate(nint a1, nint a2);
@@ -310,7 +312,7 @@ public static unsafe class Game
         }
         catch
         {
-            replayList = new();
+            replayList = [];
         }
 
         return replayList;
@@ -545,7 +547,7 @@ public static unsafe class Game
         if (!Common.IsValid(Common.ContentsReplayModule))
             throw new ApplicationException($"{nameof(Common.ContentsReplayModule)} is not initialized!");
 
-        ContentsReplayModule.onLoginPacket.CreateHook(OnLoginPacketDetour);
+        ContentsReplayModule.onZoneInPacket.CreateHook(OnZoneInPacketDetour);
         ContentsReplayModule.initializeRecording.CreateHook(InitializeRecordingDetour);
         ContentsReplayModule.playbackUpdate.CreateHook(PlaybackUpdateDetour);
         ContentsReplayModule.requestPlayback.CreateHook(RequestPlaybackDetour);
