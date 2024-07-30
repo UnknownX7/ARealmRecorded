@@ -61,12 +61,11 @@ public static unsafe class Game
     private static delegate* unmanaged<CharacterManager*, int, void> deleteCharacterAtIndex;
     public static void DeleteCharacterAtIndex(int i) => deleteCharacterAtIndex(CharacterManager.Instance(), i);
 
-    private static Bool OnLoginDetour(ContentsReplayModule* contentsReplayModule)
+    private static void OnLoginPacketDetour(ContentsReplayModule* contentsReplayModule, uint gameObject, nint packet)
     {
-        var ret = ContentsReplayModule.onLogin.Original(contentsReplayModule);
+        ContentsReplayModule.onLoginPacket.Original(contentsReplayModule, gameObject, packet);
         if (DalamudApi.GameConfig.UiConfig.TryGetBool(nameof(UiConfigOption.CutsceneSkipIsContents), out var b) && b)
             InitializeRecordingDetour(contentsReplayModule);
-        return ret;
     }
 
     private static void InitializeRecordingDetour(ContentsReplayModule* contentsReplayModule)
@@ -118,10 +117,10 @@ public static unsafe class Game
         return ret;
     }
 
-    private static void BeginPlaybackDetour(ContentsReplayModule* contentsReplayModule, Bool allowed)
+    private static void ReceiveActorControlPacketDetour(ContentsReplayModule* contentsReplayModule, uint gameObject, nint packet)
     {
-        ContentsReplayModule.beginPlayback.Original(contentsReplayModule, allowed);
-        if (!allowed) return;
+        ContentsReplayModule.receiveActorControlPacket.Original(contentsReplayModule, gameObject, packet);
+        if (*(ushort*)packet != 931 || !*(Bool*)(packet + 4)) return;
 
         ReplayManager.UnloadReplay();
 
@@ -546,11 +545,11 @@ public static unsafe class Game
         if (!Common.IsValid(Common.ContentsReplayModule))
             throw new ApplicationException($"{nameof(Common.ContentsReplayModule)} is not initialized!");
 
-        ContentsReplayModule.onLogin.CreateHook(OnLoginDetour);
+        ContentsReplayModule.onLoginPacket.CreateHook(OnLoginPacketDetour);
         ContentsReplayModule.initializeRecording.CreateHook(InitializeRecordingDetour);
         ContentsReplayModule.playbackUpdate.CreateHook(PlaybackUpdateDetour);
         ContentsReplayModule.requestPlayback.CreateHook(RequestPlaybackDetour);
-        ContentsReplayModule.beginPlayback.CreateHook(BeginPlaybackDetour);
+        ContentsReplayModule.receiveActorControlPacket.CreateHook(ReceiveActorControlPacketDetour);
         ContentsReplayModule.getReplayDataSegment.CreateHook(GetReplayDataSegmentDetour);
         ContentsReplayModule.onSetChapter.CreateHook(OnSetChapterDetour);
         ContentsReplayModule.replayPacket.CreateHook(ReplayPacketDetour);
