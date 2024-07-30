@@ -134,7 +134,9 @@ public static unsafe class Game
 
     private static void PlaybackUpdateDetour(ContentsReplayModule* contentsReplayModule)
     {
+        GetReplayDataSegmentHook?.Enable();
         ContentsReplayModule.playbackUpdate.Original(contentsReplayModule);
+        GetReplayDataSegmentHook?.Disable();
 
         UpdateAutoRename();
 
@@ -545,14 +547,6 @@ public static unsafe class Game
         if (!Common.IsValid(Common.ContentsReplayModule))
             throw new ApplicationException($"{nameof(Common.ContentsReplayModule)} is not initialized!");
 
-        ContentsReplayModule.onZoneInPacket.CreateHook(OnZoneInPacketDetour);
-        ContentsReplayModule.initializeRecording.CreateHook(InitializeRecordingDetour);
-        ContentsReplayModule.playbackUpdate.CreateHook(PlaybackUpdateDetour);
-        ContentsReplayModule.requestPlayback.CreateHook(RequestPlaybackDetour);
-        ContentsReplayModule.receiveActorControlPacket.CreateHook(ReceiveActorControlPacketDetour);
-        ContentsReplayModule.onSetChapter.CreateHook(OnSetChapterDetour);
-        ContentsReplayModule.replayPacket.CreateHook(ReplayPacketDetour);
-
         // Utilize an unused function to act as a hook
         var address = DalamudApi.SigScanner.ScanModule("48 39 43 38 0F 83 ?? ?? ?? ?? 48 8B 4B 30");
         var functionAddress = ContentsReplayModule.onLogin.Address;
@@ -566,6 +560,14 @@ public static unsafe class Game
                0x90
             ],
             true);
+
+        ContentsReplayModule.onZoneInPacket.CreateHook(OnZoneInPacketDetour);
+        ContentsReplayModule.initializeRecording.CreateHook(InitializeRecordingDetour);
+        ContentsReplayModule.playbackUpdate.CreateHook(PlaybackUpdateDetour);
+        ContentsReplayModule.requestPlayback.CreateHook(RequestPlaybackDetour);
+        ContentsReplayModule.receiveActorControlPacket.CreateHook(ReceiveActorControlPacketDetour);
+        ContentsReplayModule.onSetChapter.CreateHook(OnSetChapterDetour);
+        ContentsReplayModule.replayPacket.CreateHook(ReplayPacketDetour);
 
         Common.ContentsReplayModule->SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
 
