@@ -54,9 +54,15 @@ public static unsafe class PlaybackControlsUI
         if (!loadedPlayback)
         {
             if (Common.ContentsReplayModule->u0x700 != 0)
+            {
                 loadingPlayback = true;
+            }
             else if (loadingPlayback && Common.ContentsReplayModule->u0x700 == 0)
+            {
                 loadedPlayback = true;
+                if (!ARealmRecorded.Config.EnableWaymarks)
+                    Game.ToggleWaymarks();
+            }
             return;
         }
 
@@ -103,7 +109,11 @@ public static unsafe class PlaybackControlsUI
         ImGui.SameLine();
         var v = Game.IsWaymarkVisible;
         if (ImGuiEx.FontButton(v ? FontAwesomeIcon.ToggleOn.ToIconString() : FontAwesomeIcon.ToggleOff.ToIconString(), UiBuilder.IconFont))
+        {
             Game.ToggleWaymarks();
+            ARealmRecorded.Config.EnableWaymarks ^= true;
+            ARealmRecorded.Config.Save();
+        }
         ImGuiEx.SetItemTooltip(v ? "Hide waymarks." : "Show waymarks.");
 
         using (ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))

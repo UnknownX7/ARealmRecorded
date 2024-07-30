@@ -15,4 +15,5 @@ public class Configuration : PluginConfiguration, IPluginConfiguration
     public bool EnableJumpToTime = false;
     public float MaxSeekDelta = 100;
     public float CustomSpeedPreset = 30;
+    public bool EnableWaymarks = true;
 }
