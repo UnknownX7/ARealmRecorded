@@ -34,7 +34,7 @@ public static unsafe class ReplayListUI
             if (DalamudApi.GameGui.GameUiHidden) return;
 
             var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting");
-            if (addon == null || !addon->IsVisible || (addon->Flags190 & 16) == 0) return;
+            if (addon == null || !addon->IsVisible || (addon->Flags198 & 16) == 0) return;
 
             agent = DalamudApi.GameGui.FindAgentInterface((nint)addon);
             if (agent == nint.Zero) return;
@@ -142,15 +142,15 @@ public static unsafe class ReplayListUI
             {
                 // Date
                 Game.ReplayList = sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending
-                    ? Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenBy(t => t.Item2.header.timestamp).ToList()
-                    : Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenByDescending(t => t.Item2.header.timestamp).ToList();
+                    ? [ .. Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenBy(t => t.Item2.header.timestamp) ]
+                    : [ .. Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenByDescending(t => t.Item2.header.timestamp) ];
             }
             else
             {
                 // Name
                 Game.ReplayList = sortspecs.Specs.SortDirection == ImGuiSortDirection.Ascending
-                    ? Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenBy(t => t.Item1.Name).ToList()
-                    : Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenByDescending(t => t.Item1.Name).ToList();
+                    ? [ .. Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenBy(t => t.Item1.Name) ]
+                    : [ .. Game.ReplayList.OrderByDescending(t => t.Item2.header.IsPlayable).ThenByDescending(t => t.Item1.Name) ];
             }
             sortspecs.SpecsDirty = false;
             needSort = false;
@@ -185,7 +185,7 @@ public static unsafe class ReplayListUI
                     }
                 }
 
-                if (ImGui.IsItemHovered())
+                if (replay.header.IsCurrentFormatVersion && ImGui.IsItemHovered())
                 {
                     var (pulls, longestPull) = replay.GetPullInfo();
 
