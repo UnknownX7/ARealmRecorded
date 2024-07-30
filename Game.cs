@@ -148,11 +148,9 @@ public static unsafe class Game
         ReplayManager.PlaybackUpdate(contentsReplayModule);
     }
 
-    public static FFXIVReplay.DataSegment* GetReplayDataSegmentDetour(ContentsReplayModule* contentsReplayModule)
-    {
-        var segment = ReplayManager.GetReplayDataSegment(contentsReplayModule);
-        return segment != null ? segment : ContentsReplayModule.getReplayDataSegment.Original(contentsReplayModule);
-    }
+    private static AsmPatch createGetReplaySegmentHookPatch;
+    private static Hook<ContentsReplayModule.GetReplayDataSegmentDelegate> GetReplayDataSegmentHook;
+    public static FFXIVReplay.DataSegment* GetReplayDataSegmentDetour(ContentsReplayModule* contentsReplayModule) => ReplayManager.GetReplayDataSegment(contentsReplayModule);
 
     private static void OnSetChapterDetour(ContentsReplayModule* contentsReplayModule, byte chapter)
     {
@@ -552,9 +550,22 @@ public static unsafe class Game
         ContentsReplayModule.playbackUpdate.CreateHook(PlaybackUpdateDetour);
         ContentsReplayModule.requestPlayback.CreateHook(RequestPlaybackDetour);
         ContentsReplayModule.receiveActorControlPacket.CreateHook(ReceiveActorControlPacketDetour);
-        ContentsReplayModule.getReplayDataSegment.CreateHook(GetReplayDataSegmentDetour);
         ContentsReplayModule.onSetChapter.CreateHook(OnSetChapterDetour);
         ContentsReplayModule.replayPacket.CreateHook(ReplayPacketDetour);
+
+        // Utilize an unused function to act as a hook
+        var address = DalamudApi.SigScanner.ScanModule("48 39 43 38 0F 83 ?? ?? ?? ?? 48 8B 4B 30");
+        var functionAddress = ContentsReplayModule.onLogin.Address;
+        GetReplayDataSegmentHook = DalamudApi.GameInteropProvider.HookFromAddress<ContentsReplayModule.GetReplayDataSegmentDelegate>(functionAddress, GetReplayDataSegmentDetour);
+        createGetReplaySegmentHookPatch = new(address,
+            [
+               0x48, 0x8B, 0xCB, // mov rcx, rbx
+               0xE8, .. BitConverter.GetBytes((int)(functionAddress - (address + 0x8))), // call onLogin
+               0x4C, 0x8B, 0xF0, // mov r14, rax
+               0xEB, 0x3A, // jmp
+               0x90
+            ],
+            true);
 
         Common.ContentsReplayModule->SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
 
@@ -564,6 +575,9 @@ public static unsafe class Game
 
     public static void Dispose()
     {
+        createGetReplaySegmentHookPatch?.Dispose();
+        GetReplayDataSegmentHook?.Dispose();
+
         if (Common.ContentsReplayModule != null)
             Common.ContentsReplayModule->SetSavedReplayCIDs(0);
 
