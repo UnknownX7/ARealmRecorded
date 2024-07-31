@@ -46,7 +46,7 @@ public static unsafe class ReplayListUI
             var addonW = addon->RootNode->GetWidth() * addon->Scale;
             var addonH = (addon->RootNode->GetHeight() - 11) * addon->Scale;
             ImGuiHelpers.ForceNextWindowMainViewport();
-            ImGui.SetNextWindowPos(new(addon->X + addonW, addon->Y));
+            ImGui.SetNextWindowPos(new Vector2(addon->X + addonW, addon->Y) + ImGuiHelpers.MainViewport.Pos);
             ImGui.SetNextWindowSize(new Vector2(500 * ImGuiHelpers.GlobalScale, addonH));
             ImGui.Begin("##ExpandedContentsReplaySetting", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
         }
