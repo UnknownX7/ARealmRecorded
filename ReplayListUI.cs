@@ -34,7 +34,7 @@ public static unsafe class ReplayListUI
             if (DalamudApi.GameGui.GameUiHidden) return;
 
             var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting");
-            if (addon == null || !addon->IsVisible || (addon->Flags198 & 16) == 0) return;
+            if (addon == null || !addon->IsVisible || (addon->Flags198 & 512) == 0) return;
 
             agent = DalamudApi.GameGui.FindAgentInterface((nint)addon);
             if (agent == nint.Zero) return;
@@ -193,7 +193,7 @@ public static unsafe class ReplayListUI
 
                     using (ImGuiEx.StyleVarBlock.Begin(ImGuiStyleVar.ItemSpacing, Vector2.Zero))
                     {
-                        ImGui.TextUnformatted($"Duty: {header.ContentFinderCondition?.Name.ToDalamudString()}");
+                        ImGui.TextUnformatted($"Duty: {header.ContentFinderCondition.Name.ToDalamudString()}");
                         if ((header.info & 4) != 0)
                         {
                             ImGui.SameLine();
@@ -208,7 +208,7 @@ public static unsafe class ReplayListUI
                         foreach (var row in header.ClassJobs.OrderBy(row => row.UIPriority))
                         {
                             ImGui.SameLine();
-                            if (!foundPlayer && row == header.LocalPlayerClassJob)
+                            if (!foundPlayer && row.RowId == header.LocalPlayerClassJob.RowId)
                             {
                                 ImGui.TextUnformatted($" «{row.Abbreviation}»");
                                 foundPlayer = true;

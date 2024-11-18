@@ -40,7 +40,7 @@ public static unsafe class Game
 
     private static readonly AsmPatch alwaysRecordPatch = new("24 06 3C 02 75 23 48", [ 0xEB, 0x1F ], true);
     private static readonly AsmPatch removeRecordReadyToastPatch = new("BA CB 07 00 00 48 8B CF E8", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
-    private static readonly AsmPatch seIsABunchOfClownsPatch = new("F6 40 78 01 74 04 B0 01 EB 02 32 C0 40 84 FF", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
+    private static readonly AsmPatch seIsABunchOfClownsPatch = new("F6 40 78 02 74 04 B0 01 EB 02 32 C0 40 84 FF", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
     private static readonly AsmPatch instantFadeOutPatch = new("44 8D 47 0A 33 D2", [ null, null, 0x07, 0x90 ], true); // lea r8d, [rdi+0A] -> lea r8d, [rdi]
     private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48 8B 5C 24", [ null, null, null, 0x01 ], true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
     public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", [ 0x90, 0x90 ], ARealmRecorded.Config.EnableHideOwnName);
@@ -75,10 +75,10 @@ public static unsafe class Game
         var id = contentsReplayModule->initZonePacket.contentFinderCondition;
         if (id == 0) return;
 
-        var contentFinderCondition = DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ContentFinderCondition>()?.GetRow(id);
+        var contentFinderCondition = DalamudApi.DataManager.GetExcelSheet<Lumina.Excel.Sheets.ContentFinderCondition>().GetRowOrDefault(id);
         if (contentFinderCondition == null) return;
 
-        var contentType = contentFinderCondition.ContentType.Row;
+        var contentType = contentFinderCondition.Value.ContentType.RowId;
         if (!whitelistedContentTypes.Contains(contentType)) return;
 
         contentsReplayModule->FixNextReplaySaveSlot();
@@ -161,7 +161,7 @@ public static unsafe class Game
     }
 
     private delegate Bool ExecuteCommandDelegate(uint clientTrigger, int param1, int param2, int param3, int param4);
-    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 8D 43 0A")]
+    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 8D 46 0A")]
     private static Hook<ExecuteCommandDelegate> ExecuteCommandHook;
     private static Bool ExecuteCommandDetour(uint clientTrigger, int param1, int param2, int param3, int param4)
     {
