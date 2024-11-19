@@ -77,7 +77,7 @@ public static unsafe class PlaybackControlsUI
         var addonW = addon->RootNode->GetWidth() * addon->Scale;
         var addonPadding = addon->Scale * 8;
         ImGuiHelpers.ForceNextWindowMainViewport();
-        ImGui.SetNextWindowPos(new(addon->X + addonPadding, addon->Y + addonPadding), ImGuiCond.Always, Vector2.UnitY);
+        ImGui.SetNextWindowPos(new Vector2(addon->X + addonPadding, addon->Y + addonPadding) + ImGuiHelpers.MainViewport.Pos, ImGuiCond.Always, Vector2.UnitY);
         ImGui.SetNextWindowSize(new Vector2(addonW - addonPadding * 2, 0));
         ImGui.Begin("Expanded Playback", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
 
