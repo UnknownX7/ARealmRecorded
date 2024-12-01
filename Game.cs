@@ -348,7 +348,7 @@ public static unsafe class Game
 
         try
         {
-            var (file, replay) = GetReplayList().MaxBy(t => t.Item1.CreationTime);
+            var (file, replay) = GetReplayList().Where(t => t.Item1.Name.StartsWith("FFXIV_")).MaxBy(t => t.Item1.LastWriteTime);
 
             var name = $"{bannedFileCharacters.Replace(Common.ContentsReplayModule->contentTitle.ToString(), string.Empty)} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
             file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
