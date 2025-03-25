@@ -45,7 +45,7 @@ public static unsafe class Game
     private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48 8B 5C 24", [ null, null, null, 0x01 ], true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
     public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", [ 0x90, 0x90 ], ARealmRecorded.Config.EnableHideOwnName);
 
-    [HypostasisSignatureInjection("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 3B", Static = true, Offset = 0x48)]
+    [HypostasisSignatureInjection("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 3B 48 8B 0D", Static = true, Offset = 0x48)]
     private static byte* waymarkToggle; // Actually a uint, but only seems to use the first 2 bits
 
     public static bool IsWaymarkVisible => (*waymarkToggle & 2) == 0;
