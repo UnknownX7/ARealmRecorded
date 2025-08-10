@@ -7,7 +7,7 @@ using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 
 namespace ARealmRecorded;
 
@@ -33,7 +33,7 @@ public static unsafe class ReplayListUI
         {
             if (DalamudApi.GameGui.GameUiHidden) return;
 
-            var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting");
+            var addon = (AtkUnitBase*)DalamudApi.GameGui.GetAddonByName("ContentsReplaySetting").Address;
             if (addon == null || !addon->IsVisible || (addon->Flags198 & 512) == 0) return;
 
             agent = DalamudApi.GameGui.FindAgentInterface((nint)addon);
@@ -230,7 +230,7 @@ public static unsafe class ReplayListUI
                     ImGui.EndTooltip();
                 }
 
-                if (ImGui.BeginPopupContextItem())
+                if (ImGui.BeginPopupContextItem(ImU8String.Empty))
                 {
                     if (agent != nint.Zero)
                     {
