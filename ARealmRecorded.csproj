@@ -3,6 +3,7 @@
     <PropertyGroup>
         <Version>1.0.1.5</Version>
         <Nullable>disable</Nullable>
+        <AppendPlatformToOutputPath>false</AppendPlatformToOutputPath>
     </PropertyGroup>
 
 </Project>
