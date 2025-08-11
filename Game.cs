@@ -38,7 +38,7 @@ public static unsafe class Game
 
     private static readonly HashSet<uint> whitelistedContentTypes = [ 1, 2, 3, 4, 5, 9, 28, 29, 30, 37 ]; // 22 Event, 26 Eureka, 27 Carnivale
 
-    private static readonly AsmPatch alwaysRecordPatch = new("24 06 3C 02 75 23 48", [ 0xEB, 0x1F ], true);
+    private static readonly AsmPatch alwaysRecordPatch = new("24 06 3C 02 75 29", [ 0xEB, 0x25 ], true);
     private static readonly AsmPatch removeRecordReadyToastPatch = new("BA CB 07 00 00 48 8B CF E8", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
     private static readonly AsmPatch seIsABunchOfClownsPatch = new("F6 40 78 02 74 04 B0 01 EB 02 32 C0 40 84 FF", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
     private static readonly AsmPatch instantFadeOutPatch = new("44 8D 47 0A 33 D2", [ null, null, 0x07, 0x90 ], true); // lea r8d, [rdi+0A] -> lea r8d, [rdi]
@@ -200,7 +200,7 @@ public static unsafe class Game
         || ContentsReplayModule.replayPacket.Original(contentsReplayModule, segment, data);
 
     public delegate nint FormatAddonTextTimestampDelegate(nint raptureTextModule, uint addonSheetRow, int a3, uint hours, uint minutes, uint seconds, uint a7);
-    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 8D 4D 64")]
+    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 48 8B D0 8D 4F 0E")]
     private static Hook<FormatAddonTextTimestampDelegate> FormatAddonTextTimestampHook;
     private static nint FormatAddonTextTimestampDetour(nint raptureTextModule, uint addonSheetRow, int a3, uint hours, uint minutes, uint seconds, uint a7)
     {
