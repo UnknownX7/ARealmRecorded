@@ -8,6 +8,8 @@ using Dalamud.Interface.Utility;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Dalamud.Bindings.ImGui;
+using System.Collections.Generic;
+using Lumina.Excel.Sheets;
 
 namespace ARealmRecorded;
 
@@ -25,6 +27,8 @@ public static unsafe class ReplayListUI
     private static int editingReplay = -1;
     private static string editingName = string.Empty;
     private static readonly Regex displayNameRegex = new("(.+)[ _]\\d{4}\\.");
+    private static string search = "";
+    private static uint selectedContent = 0;
 
     public static void Draw()
     {
@@ -128,6 +132,27 @@ public static unsafe class ReplayListUI
 
     public static void DrawReplaysTable(nint agent)
     {
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X / 2);
+        ImGui.InputTextWithHint("##search", "Search Replays", ref search);
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+        if(ImGui.BeginCombo("##selectContent", selectedContent == 0?"Select Duty":(DalamudApi.DataManager.GetExcelSheet<ContentFinderCondition>().GetRowOrDefault(selectedContent)?.Name.ToString() ?? selectedContent.ToString()), ImGuiComboFlags.HeightLarge))
+        {
+            if(ImGui.Selectable("- All -", selectedContent == 0))
+            {
+                selectedContent = 0;
+            }
+            foreach(var cfc in Game.ReplayList.Select(d => d.Item2.header.ContentFinderCondition).Where(d => d.Name != "").Distinct().OrderBy(d => d.TerritoryType.ValueNullable?.TerritoryIntendedUse.RowId).ThenBy(d => d.RowId))
+            {
+                if(ImGui.Selectable($"{cfc.Name.ToString().FirstCharToUpper()}##{cfc.RowId}", cfc.RowId == selectedContent))
+                {
+                    selectedContent = cfc.RowId;
+                }
+                if(cfc.RowId == selectedContent && ImGui.IsWindowAppearing()) ImGui.SetScrollHereY();
+            }
+            ImGui.EndCombo();
+        }
+
         if (!ImGui.BeginTable("ReplaysTable", 2, ImGuiTableFlags.Sortable | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.BordersOuter | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.ScrollY)) return;
 
         ImGui.TableSetupScrollFreeze(0, 1);
@@ -165,6 +190,9 @@ public static unsafe class ReplayListUI
             var displayName = displayNameRegex.Match(fileName) is { Success: true } match ? match.Groups[1].Value : fileName[..fileName.LastIndexOf('.')];
             var isPlayable = replay.header.IsPlayable;
             var autoRenamed = file.Directory?.Name == "autorenamed";
+
+            if(search != "" && !displayName.Contains(search, StringComparison.OrdinalIgnoreCase)) continue;
+            if(selectedContent != 0 && header.ContentFinderCondition.RowId != selectedContent) continue;
 
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
