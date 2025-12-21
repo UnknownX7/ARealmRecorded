@@ -40,10 +40,11 @@ public static unsafe class Game
 
     private static readonly AsmPatch alwaysRecordPatch = new("24 06 3C 02 75 29", [ 0xEB, 0x25 ], true);
     private static readonly AsmPatch removeRecordReadyToastPatch = new("BA CB 07 00 00 48 8B CF E8", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
-    private static readonly AsmPatch seIsABunchOfClownsPatch = new("F6 40 ?? 02 74 04 B0 01 EB 02 32 C0 40 84 FF", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
+    private static readonly AsmPatch removeReplayableContentCheckPatch = new("F6 40 ?? 02 74 04 B0 01 EB 02 32 C0 40 84 FF", [ 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 ], true);
     private static readonly AsmPatch instantFadeOutPatch = new("44 8D 47 0A 33 D2", [ null, null, 0x07, 0x90 ], true); // lea r8d, [rdi+0A] -> lea r8d, [rdi]
     private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48 8B 5C 24", [ null, null, null, 0x01 ], true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
     public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", [ 0x90, 0x90 ], ARealmRecorded.Config.EnableHideOwnName);
+    public static readonly AsmPatch fixCountdownPatch = new("75 19 45 33 C0 48 8D 0D ?? ?? ?? ?? BA CB 00 00 00 E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 80 7F", [ 0xEB ]); // jnz -> jmp, TODO remove when fixed
 
     [HypostasisSignatureInjection("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 3B 48 8B 0D", Static = true, Offset = 0x48)]
     private static byte* waymarkToggle; // Actually a uint, but only seems to use the first 2 bits
@@ -227,7 +228,7 @@ public static unsafe class Game
         return ret;
     }
 
-    public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.ClientState.LocalContentId:X16}_{slot:D3}.dat";
+    public static string GetReplaySlotName(int slot) => $"FFXIV_{DalamudApi.PlayerState.ContentId:X16}_{slot:D3}.dat";
 
     private static void UpdateAutoRename()
     {
@@ -241,7 +242,7 @@ public static unsafe class Game
                 DalamudApi.Framework.RunOnTick(() =>
                 {
                     AutoRenameReplay();
-                    Common.ContentsReplayModule->SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
+                    Common.ContentsReplayModule->SetSavedReplayCIDs(DalamudApi.PlayerState.ContentId);
                 }, default, 30);
                 break;
         }
@@ -473,7 +474,7 @@ public static unsafe class Game
 
     public static void SetDutyRecorderMenuSelection(nint agent, string path, FFXIVReplay.Header header)
     {
-        header.localCID = DalamudApi.ClientState.LocalContentId;
+        header.localCID = DalamudApi.PlayerState.ContentId;
         LastSelectedReplay = path;
         lastSelectedHeader = header;
         var prevHeader = Common.ContentsReplayModule->savedReplayHeaders[0];
@@ -490,7 +491,7 @@ public static unsafe class Game
         try
         {
             file.CopyTo(Path.Combine(replayFolder, GetReplaySlotName(slot)), true);
-            header.localCID = DalamudApi.ClientState.LocalContentId;
+            header.localCID = DalamudApi.PlayerState.ContentId;
             Common.ContentsReplayModule->savedReplayHeaders[slot] = header;
             SetDutyRecorderMenuSelection(agent, slot);
             GetReplayList();
@@ -577,7 +578,7 @@ public static unsafe class Game
         ContentsReplayModule.onSetChapter.CreateHook(OnSetChapterDetour);
         ContentsReplayModule.replayPacket.CreateHook(ReplayPacketDetour);
 
-        Common.ContentsReplayModule->SetSavedReplayCIDs(DalamudApi.ClientState.LocalContentId);
+        Common.ContentsReplayModule->SetSavedReplayCIDs(DalamudApi.PlayerState.ContentId);
 
         if (Common.ContentsReplayModule->InPlayback && Common.ContentsReplayModule->fileStream != nint.Zero && *(long*)Common.ContentsReplayModule->fileStream == 0)
             ReplayManager.LoadReplay(ARealmRecorded.Config.LastLoadedReplay);
