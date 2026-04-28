@@ -101,43 +101,39 @@ public static unsafe class ReplayListUI
             ImGui.SameLine();
             if (ImGui.Button(FontAwesomeIcon.Cog.ToIconString()))
                 showPluginSettings ^= true;
+        }
+
+        using (ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))
+        {
+            ImGui.SameLine();
+            if (ImGui.Button(FontAwesomeIcon.File.ToIconString()))
+                ImGui.OpenPopup("LoadReplayFromFile");
+        }
+        ImGuiEx.SetItemTooltip("Load replay from file.");
 #if DEBUG
+        using (ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))
+        {
             ImGui.SameLine();
             if (ImGui.Button(FontAwesomeIcon.ExclamationTriangle.ToIconString()))
                 Game.ReadPackets(Game.LastSelectedReplay);
+        }
 #endif
-        }
-
-        using(ImGuiEx.FontBlock.Begin(UiBuilder.IconFont))
-        {
-            ImGui.SameLine();
-            if(ImGui.Button(FontAwesomeIcon.File.ToIconString()))
-            {
-                ImGui.OpenPopup("LoadReplayFromFile");
-            }
-        }
-        if(ImGui.BeginPopup("LoadReplayFromFile"))
+        if (ImGui.BeginPopup("LoadReplayFromFile"))
         {
             ImGui.SetNextItemWidth(250f);
-            if(ImGui.InputTextWithHint("##loadReplayFromFile", "Path...", ref loadReplayPath, flags:ImGuiInputTextFlags.EnterReturnsTrue))
-            {
-                load();
-            }
-            if(ImGuiComponents.IconButtonWithText(FontAwesomeIcon.File, "Load Replay"))
-            {
-                load();
-            }
-            void load()
+
+            var load = ImGui.InputTextWithHint("##loadReplayFromFile", "Path...", ref loadReplayPath, flags: ImGuiInputTextFlags.EnterReturnsTrue);
+            load |= ImGuiComponents.IconButtonWithText(FontAwesomeIcon.File, "Load Replay");
+
+            if (load)
             {
                 var pathFixed = loadReplayPath.Replace("\"", "").Trim();
-                if(!SetReplay(agent, pathFixed))
-                {
-                    DalamudApi.ShowNotification("Error: file does not contains a valid replay", NotificationType.Error);
-                }
+                if (!SetReplay(agent, pathFixed))
+                    DalamudApi.ShowNotification("Error: File does not contains a valid replay", NotificationType.Error);
             }
+
             ImGui.EndPopup();
         }
-        ImGuiEx.SetItemTooltip("Load replay from file.");
 
         if (!displayDetachedReplayList)
         {
@@ -189,7 +185,7 @@ public static unsafe class ReplayListUI
                 .ThenBy(d => d.RowId))
             {
                 var name = cfc.Name.ToString().FirstCharToUpper();
-                if(searchContent != "" && !name.Contains(searchContent, StringComparison.OrdinalIgnoreCase)) continue;
+                if (searchContent != "" && !name.Contains(searchContent, StringComparison.OrdinalIgnoreCase)) continue;
                 if (ImGui.Selectable($"{name}##{cfc.RowId}", cfc.RowId == selectedContent))
                     selectedContent = cfc.RowId;
 
@@ -371,17 +367,17 @@ public static unsafe class ReplayListUI
         ImGui.EndChild();
     }
 
-    public static bool SetReplay(nint agent, string path)
+    private static bool SetReplay(nint agent, string path)
     {
-        FileInfo file = new(path);
-        if(file.Extension != ".dat") return false;
+        if (agent == nint.Zero) return false;
+
+        var file = new FileInfo(path);
+        if (!file.Exists || file.Extension != ".dat") return false;
+
         var replay = Game.ReadReplayHeaderAndChapters(file.FullName);
-        if(!(replay.HasValue && replay.Value.header.IsValid)) return false;
-        if(agent != nint.Zero)
-        {
-            Game.SetDutyRecorderMenuSelection(agent, path, replay.Value.header);
-            return true;
-        }
-        return false;
+        if (replay is not { header.IsValid: true }) return false;
+
+        Game.SetDutyRecorderMenuSelection(agent, path, replay.Value.header);
+        return true;
     }
 }

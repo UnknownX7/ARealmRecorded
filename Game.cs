@@ -44,7 +44,6 @@ public static unsafe class Game
     private static readonly AsmPatch instantFadeOutPatch = new("44 8D 47 0A 33 D2", [ null, null, 0x07, 0x90 ], true); // lea r8d, [rdi+0A] -> lea r8d, [rdi]
     private static readonly AsmPatch instantFadeInPatch = new("44 8D 42 0A 41 FF 92 ?? ?? 00 00 48 8B 5C 24", [ null, null, null, 0x01 ], true); // lea r8d, [rdx+0A] -> lea r8d, [rdx+01]
     public static readonly AsmPatch replaceLocalPlayerNamePatch = new("75 ?? 48 8D 4C 24 ?? E8 ?? ?? ?? ?? F6 05", [ 0x90, 0x90 ], ARealmRecorded.Config.EnableHideOwnName);
-    public static readonly AsmPatch fixCountdownPatch = new("75 19 45 33 C0 48 8D 0D ?? ?? ?? ?? BA CB 00 00 00 E8 ?? ?? ?? ?? E9 ?? ?? ?? ?? 80 7F", [ 0xEB ]); // jnz -> jmp, TODO remove when fixed
 
     [HypostasisSignatureInjection("48 8D 0D ?? ?? ?? ?? E8 ?? ?? ?? ?? EB 3B 48 8B 0D", Static = true, Offset = 0x48)]
     private static byte* waymarkToggle; // Actually a uint, but only seems to use the first 2 bits
@@ -162,7 +161,7 @@ public static unsafe class Game
     }
 
     private delegate Bool ExecuteCommandDelegate(uint clientTrigger, int param1, int param2, int param3, int param4);
-    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? 8D 46 0A")]
+    [HypostasisSignatureInjection("E8 ?? ?? ?? ?? EB 5B 48 8B 47 08")]
     private static Hook<ExecuteCommandDelegate> ExecuteCommandHook;
     private static Bool ExecuteCommandDetour(uint clientTrigger, int param1, int param2, int param3, int param4)
     {
