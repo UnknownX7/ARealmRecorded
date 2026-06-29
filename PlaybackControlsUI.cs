@@ -39,7 +39,7 @@ public static unsafe class PlaybackControlsUI
             return;
         }
 
-        if (DalamudApi.GameGui.GetAddonByName("TalkSubtitle") != nint.Zero) return; // Hide during cutscenes
+        if (ARealmRecorded.Config.HideDuringCutscenes && DalamudApi.GameGui.GetAddonByName("TalkSubtitle") != nint.Zero) return; // Hide during cutscenes
 
         if (Common.ContentsReplayModule->seek != lastSeek || Common.ContentsReplayModule->IsPaused)
         {

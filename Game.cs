@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Config;
 using Dalamud.Hooking;
+using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using Hypostasis.Game.Structures;
@@ -351,7 +352,13 @@ public static unsafe class Game
             var (file, replay) = GetReplayList().Where(t => t.Item1.Name.StartsWith("FFXIV_")).MaxBy(t => t.Item1.LastWriteTime);
 
             var name = $"{bannedFileCharacters.Replace(Common.ContentsReplayModule->contentTitle.ToString(), string.Empty)} {DateTime.Now:yyyy.MM.dd HH.mm.ss}";
-            file.MoveTo(Path.Combine(autoRenamedFolder, $"{name}.dat"));
+            var destination = Path.Combine(autoRenamedFolder, $"{name}.dat");
+            file.MoveTo(destination);
+            if(ARealmRecorded.Config.UseNTFSCompression && Dalamud.Utility.Util.GetHostPlatform() == OSPlatform.Windows && Utility.IsOnCompressibleNtfsDrive(destination))
+            {
+                Utility.RequestFileCompression(destination);
+                DalamudApi.LogDebug($"Requested compression of {destination}");
+            }
 
             var renamedFiles = new DirectoryInfo(autoRenamedFolder).GetFiles().Where(f => f.Extension == ".dat").ToList();
             while (renamedFiles.Count > ARealmRecorded.Config.MaxAutoRenamedReplays)

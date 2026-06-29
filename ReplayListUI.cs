@@ -361,6 +361,11 @@ public static unsafe class ReplayListUI
         save |= ImGui.InputInt("Max Deleted Replays", ref ARealmRecorded.Config.MaxDeletedReplays);
         ImGuiEx.SetItemTooltip("Max number of replays to keep in the deleted folder.");
 
+        save |= ImGui.Checkbox("Hide Control During Cutscenes", ref ARealmRecorded.Config.HideDuringCutscenes);
+
+        save |= ImGui.Checkbox("Compress Replays (Windows only, NTFS drives only)", ref ARealmRecorded.Config.UseNTFSCompression);
+        ImGuiEx.SetItemTooltip("Replays will be compressed to approximately 1/3th of original size using built-in NTFS compression. Replays will load slightly slower with this option enabled (there will be no effect on recording on playback though). ");
+
         if (save)
             ARealmRecorded.Config.Save();
 

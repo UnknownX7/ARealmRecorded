@@ -16,4 +16,6 @@ public class Configuration : PluginConfiguration, IPluginConfiguration
     public float MaxSeekDelta = 100;
     public float CustomSpeedPreset = 30;
     public bool EnableWaymarks = true;
+    public bool HideDuringCutscenes = true;
+    public bool UseNTFSCompression = false;
 }
