@@ -367,7 +367,7 @@ public static unsafe class ReplayListUI
         ImGui.EndChild();
     }
 
-    private static bool SetReplay(nint agent, string path)
+    public static bool SetReplay(nint agent, string path)
     {
         if (agent == nint.Zero) return false;
 

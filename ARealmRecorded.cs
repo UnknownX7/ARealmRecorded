@@ -12,6 +12,7 @@ public class ARealmRecorded(IDalamudPluginInterface pluginInterface) : DalamudPl
     {
         Game.Initialize();
         ReplayPacketManager.Initialize();
+        IPC.Initialize();
         DalamudApi.ToastGui.Toast += OnToast;
     }
 
@@ -34,5 +35,6 @@ public class ARealmRecorded(IDalamudPluginInterface pluginInterface) : DalamudPl
         if (!disposing) return;
         DalamudApi.ToastGui.Toast -= OnToast;
         Game.Dispose();
+        IPC.Dispose();
     }
 }
