@@ -21,7 +21,7 @@ public static class IPC
     private static unsafe bool LoadReplayFromFile(string path)
     {
         AgentInterface* agent = AgentModule.Instance()->GetAgentByInternalId(AgentId.ContentsReplaySetting);
-        if (!agent->IsAddonShown()) return false;
+        if (agent == null || !agent->IsAddonShown()) return false;
         return ReplayListUI.SetReplay((nint)agent, path);
     }
 }
